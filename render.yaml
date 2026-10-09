@@ -1,0 +1,13 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+# Render 대시보드 → New → Blueprint 에서 이 저장소를 선택하면 자동 배포됩니다.
+services:
+  - type: web
+    name: warfield
+    runtime: node
+    plan: starter        # free 플랜도 동작하지만 15분 미사용 시 슬립되고 CPU가 매우 작습니다
+    buildCommand: npm install --omit=dev
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "20"

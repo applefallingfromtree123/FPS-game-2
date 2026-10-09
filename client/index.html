@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WARFIELD</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<script type="importmap">
+{ "imports": { "three": "/vendor/three/build/three.module.js", "three/addons/": "/vendor/three/examples/jsm/" } }
+</script>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<canvas id="overlay"></canvas>
+
+<!-- ============ MENU ============ -->
+<div id="menu" class="screen active">
+  <div class="menu-bg"></div>
+  <div class="menu-left">
+    <div class="logo">WARFIELD</div>
+    <div class="tagline">100인 전면전 · 40개 전장 · 112종 무기</div>
+    <div class="name-row"><label>콜사인</label><input id="name" maxlength="16" placeholder="플레이어 이름"></div>
+    <nav class="menu-nav">
+      <button data-tab="play" class="active">플레이</button>
+      <button data-tab="loadout">병과 &amp; 무기</button>
+      <button data-tab="settings">설정</button>
+      <button data-tab="howto">조작법</button>
+    </nav>
+    <div class="online" id="online">서버 연결 중…</div>
+  </div>
+  <div class="menu-right">
+    <section id="tab-play" class="tab active">
+      <h2>게임 모드</h2>
+      <div id="modes" class="modes"></div>
+      <div class="play-row">
+        <div class="map-pick"><label>전장 (연습전)</label><select id="mapSel"></select></div>
+        <button id="btnFind" class="primary">온라인 매치 찾기</button>
+        <button id="btnPractice">봇과 즉시 시작</button>
+      </div>
+      <p class="hint">온라인 매치: 2명 이상이 모이면 <b>2분</b> 카운트다운이 시작되고, 시간이 지나면 남은 자리는 <b>AI 봇</b>으로 채워져 바로 전투가 시작됩니다. 진행 중인 전투가 있으면 봇 자리를 대신해 즉시 합류합니다.</p>
+    </section>
+    <section id="tab-loadout" class="tab"><div id="loadoutEditor"></div></section>
+    <section id="tab-settings" class="tab">
+      <h2>설정</h2>
+      <div class="settings">
+        <label>그래픽 품질 <select id="setQuality"><option value="0">낮음</option><option value="1">중간</option><option value="2">높음</option><option value="3">울트라</option></select></label>
+        <label>마우스 감도 <input type="range" id="setSens" min="0.2" max="3" step="0.05"><span id="setSensV"></span></label>
+        <label>시야각 (FOV) <input type="range" id="setFov" min="55" max="95" step="1"><span id="setFovV"></span></label>
+        <label>마스터 볼륨 <input type="range" id="setVol" min="0" max="1" step="0.05"><span id="setVolV"></span></label>
+        <label>Y축 반전 <input type="checkbox" id="setInvert"></label>
+      </div>
+    </section>
+    <section id="tab-howto" class="tab">
+      <h2>조작법</h2>
+      <div class="keys">
+        <div><b>WASD</b> 이동</div><div><b>Shift</b> 질주</div><div><b>Space</b> 점프 / 낙하산</div>
+        <div><b>C</b> 앉기</div><div><b>Z</b> 엎드리기</div><div><b>마우스 좌</b> 사격</div>
+        <div><b>마우스 우</b> 조준 (ADS)</div><div><b>R</b> 재장전</div><div><b>B</b> 사격 모드</div>
+        <div><b>1 / 2 / 3</b> 주무기 / 보조 / 가젯</div><div><b>G</b> 수류탄</div><div><b>Q</b> 적 스팟</div>
+        <div><b>E</b> 차량 탑승/하차 · 보급상자 열기</div><div><b>V</b> 차량 시점 전환</div><div><b>Tab</b> 점수판</div>
+        <div><b>M</b> 전체 지도</div><div><b>Esc</b> 메뉴</div>
+        <div class="span"><b>전차/장갑차</b>: WASD 주행, 마우스 포탑, 좌클릭 주포, 우클릭 기관총</div>
+        <div class="span"><b>헬기</b>: 마우스 방향, W/S 전후, A/D 좌우, Space 상승, C 하강, 좌클릭 기관포, 우클릭 로켓</div>
+        <div class="span"><b>전투기</b>: 마우스 조종, W/S 스로틀, A/D 요, 좌클릭 기관포, 우클릭 미사일(자동 추적)</div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<!-- ============ LOBBY ============ -->
+<div id="lobby" class="screen">
+  <div class="panel lobby-panel">
+    <div class="lobby-mode" id="lobbyMode"></div>
+    <div class="lobby-map" id="lobbyMap"></div>
+    <div class="lobby-count"><span id="lobbyHumans">1</span> / <span id="lobbyMax">100</span> 플레이어</div>
+    <div class="lobby-timer" id="lobbyTimer">추가 플레이어를 기다리는 중…</div>
+    <div class="lobby-names" id="lobbyNames"></div>
+    <p class="hint">2명 이상 모이면 2분 타이머가 시작됩니다. 타이머 종료 시 빈 자리는 AI 봇으로 채워집니다.</p>
+    <div class="row"><button id="btnStartNow" class="primary">봇과 바로 시작</button><button id="btnCancel">취소</button></div>
+  </div>
+</div>
+
+<!-- ============ LOADING ============ -->
+<div id="loading" class="screen">
+  <div class="loading-box">
+    <div class="loading-title" id="loadingTitle">전장 생성 중</div>
+    <div class="loading-sub" id="loadingSub"></div>
+    <div class="bar"><div id="loadingBar"></div></div>
+    <div class="loading-tip" id="loadingTip"></div>
+  </div>
+</div>
+
+<!-- ============ DEPLOY ============ -->
+<div id="deploy" class="screen">
+  <div class="deploy-wrap">
+    <div class="deploy-left">
+      <h2>배치</h2>
+      <div id="deployLoadout"></div>
+    </div>
+    <div class="deploy-right">
+      <canvas id="deployMap" width="512" height="512"></canvas>
+      <div id="spawnList" class="spawn-list"></div>
+      <div class="deploy-timer" id="deployTimer"></div>
+      <button id="btnDeploy" class="primary big">배치</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ HUD ============ -->
+<div id="hud">
+  <div id="objBar"></div>
+  <div id="compass"><div id="compassStrip"></div><div class="compass-mark"></div></div>
+  <div id="killfeed"></div>
+  <div id="notice"></div>
+  <div id="subnotice"></div>
+  <canvas id="minimap" width="220" height="220"></canvas>
+  <div id="status">
+    <div class="weapon-name" id="wName"></div>
+    <div class="ammo"><span id="wMag">30</span><span class="sep">/</span><span id="wRes">120</span></div>
+    <div class="fire-mode" id="wMode"></div>
+    <div class="gadgets"><span id="gGren">🧨 2</span><span id="gGadget"></span></div>
+    <div class="hp"><div id="hpBar"></div><span id="hpText">100</span></div>
+  </div>
+  <div id="vehHud"></div>
+  <div id="interact"></div>
+  <div id="scope"><div class="scope-cross"></div></div>
+  <div id="damageFlash"></div>
+  <div id="bigmap"><canvas id="bigmapCanvas" width="800" height="800"></canvas></div>
+  <div id="scoreboard"></div>
+  <div id="pause" class="panel">
+    <h2>일시정지</h2>
+    <button id="btnResume" class="primary">계속하기</button>
+    <button id="btnRedeploy">재배치 (자살)</button>
+    <button id="btnSettings2">설정</button>
+    <button id="btnLeave">매치 나가기</button>
+  </div>
+  <div id="endScreen" class="panel"></div>
+  <div id="deathCam"></div>
+</div>
+<div id="fps"></div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
