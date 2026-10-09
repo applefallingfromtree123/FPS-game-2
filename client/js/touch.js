@@ -1,7 +1,14 @@
 // On-screen touch controls (iPad / phones): virtual joystick, look-drag, fire/ADS/jump/etc buttons.
 // They drive the same `keys` / `mouse` state and key handlers as the keyboard, so every mode works.
 const $ = (id) => document.getElementById(id);
-export const isTouchDevice = () => (navigator.maxTouchPoints || 0) > 0 || 'ontouchstart' in window;
+export const isTouchDevice = () => (navigator.maxTouchPoints || 0) > 0 || 'ontouchstart' in window ||
+  (window.matchMedia && (matchMedia('(any-pointer: coarse)').matches || matchMedia('(pointer: coarse)').matches));
+// setting: 'auto' | 'on' | 'off'
+export function applyTouchMode(mode) {
+  const on = mode === 'on' || (mode !== 'off' && (isTouchDevice() || window.__sawTouch));
+  document.body.classList.toggle('touch', on);
+  return on;
+}
 
 const BUTTONS = [
   // id, label, css position, behaviour
@@ -22,9 +29,10 @@ const BUTTONS = [
   { id: 'tPause', label: 'Ⅱ', cls: 'pause', kind: 'pause' },
 ];
 
-export function initTouch(getGame) {
-  if (!isTouchDevice()) return;
-  document.body.classList.add('touch');
+export function initTouch(getGame, getMode = () => 'auto') {
+  // Always build the controls; they only show when body.touch is set (auto-detected, first touch, or forced on).
+  applyTouchMode(getMode());
+  window.addEventListener('touchstart', () => { if (!window.__sawTouch) { window.__sawTouch = true; applyTouchMode(getMode()); } }, { passive: true, capture: true });
   const root = document.createElement('div');
   root.id = 'touch';
   root.innerHTML = '<div id="tStick"><i></i></div>' + BUTTONS.map((b) => `<div class="tb ${b.cls}" id="${b.id}" data-k="${b.kind}">${b.label}</div>`).join('');

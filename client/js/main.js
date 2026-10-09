@@ -6,7 +6,7 @@ import { MODES } from '/shared/modes.js';
 import { MAPS, BIOMES } from '/shared/maps.js';
 import { WEAPONS, CATEGORIES, CLASSES, SIGHTS, MUZZLES, weaponsFor, defaultLoadout, sanitizeLoadout } from '/shared/weapons.js';
 import { buildMapImage, escapeHtml } from './hud.js';
-import { initTouch, isTouchDevice } from './touch.js';
+import { initTouch, isTouchDevice, applyTouchMode } from './touch.js';
 
 const $ = (id) => document.getElementById(id);
 const store = {
@@ -14,7 +14,7 @@ const store = {
   set(k, v) { try { localStorage.setItem('wf_' + k, JSON.stringify(v)); } catch {} },
 };
 
-const settings = Object.assign({ quality: isTouchDevice() ? 0 : 1, sens: 1, fov: 70, vol: 0.7, invert: false }, store.get('settings', {}));
+const settings = Object.assign({ touch: 'auto', quality: isTouchDevice() ? 0 : 1, sens: 1, fov: 70, vol: 0.7, invert: false }, store.get('settings', {}));
 let loadout = sanitizeLoadout(store.get('loadout', defaultLoadout('assault')));
 let selMode = store.get('mode', 'conquest');
 const net = new Net();
@@ -47,18 +47,19 @@ function buildMenu() {
   $('btnStartNow').onclick = () => net.send({ t: 'startNow' });
   $('btnCancel').onclick = () => { net.send({ t: 'leave' }); show('menu'); };
   // settings
-  $('setQuality').value = settings.quality;
+  $('setQuality').value = settings.quality; $('setTouch').value = settings.touch;
   $('setSens').value = settings.sens; $('setFov').value = settings.fov; $('setVol').value = settings.vol; $('setInvert').checked = settings.invert;
   const upd = () => {
-    settings.quality = +$('setQuality').value; settings.sens = +$('setSens').value; settings.fov = +$('setFov').value; settings.vol = +$('setVol').value; settings.invert = $('setInvert').checked;
+    settings.quality = +$('setQuality').value; settings.touch = $('setTouch').value; applyTouchMode(settings.touch); settings.sens = +$('setSens').value; settings.fov = +$('setFov').value; settings.vol = +$('setVol').value; settings.invert = $('setInvert').checked;
     $('setSensV').textContent = settings.sens.toFixed(2); $('setFovV').textContent = settings.fov; $('setVolV').textContent = Math.round(settings.vol * 100) + '%';
     audio.setVolume(settings.vol); store.set('settings', settings);
   };
-  for (const id of ['setQuality', 'setSens', 'setFov', 'setVol', 'setInvert']) $(id).addEventListener('input', upd);
+  for (const id of ['setTouch', 'setQuality', 'setSens', 'setFov', 'setVol', 'setInvert']) $(id).addEventListener('input', upd);
   upd();
   // pause menu
   $('btnResume').onclick = () => { $('pause').style.display = 'none'; game && game.lock(); };
   $('btnRedeploy').onclick = () => { net.send({ t: 'suicide' }); $('pause').style.display = 'none'; };
+  $('btnTouchToggle').onclick = () => { settings.touch = document.body.classList.contains('touch') ? 'off' : 'on'; $('setTouch').value = settings.touch; applyTouchMode(settings.touch); store.set('settings', settings); };
   $('btnLeave').onclick = () => exitMatch(true);
   $('btnSettings2').onclick = () => { exitPausePanelToSettings(); };
 }
@@ -137,7 +138,7 @@ function renderLoadout(el, compact = false) {
 }
 
 // ---------------------------------------------------------------- lobby & match
-const CLIENT_BUILD = 'touch-4';
+const CLIENT_BUILD = 'touch-5';
 net.on('welcome', (m) => { $('online').textContent = `● 서버 온라인 · 접속자 ${m.online}명 · 서버 ${m.build} · 화면 ${CLIENT_BUILD}${document.body.classList.contains('touch') ? ' · 터치 조작 켜짐' : ''}`; net.send({ t: 'hello', name: $('name').value }); });
 net.on('close', () => { $('online').textContent = '서버 연결 끊김 — 재연결 중…'; });
 net.on('lobby', (m) => {
@@ -264,6 +265,6 @@ document.addEventListener('keydown', (e) => {
 window.addEventListener('error', (e) => reportError('error', e.error || e.message));
 window.addEventListener('unhandledrejection', (e) => reportError('promise', e.reason));
 buildMenu();
-initTouch(() => game);
+initTouch(() => game, () => settings.touch);
 net.connect();
 show('menu');
