@@ -223,7 +223,11 @@ export class Game {
   }
 
   // Pointer Lock is missing on iPad/iPhone Safari: fall back to an "engaged" flag so keyboard and mouse still work.
-  get hasPointerLock() { return 'requestPointerLock' in Element.prototype; }
+  get hasPointerLock() {
+    // iPadOS reports a Mac user agent but has touch points; pointer lock is unreliable there
+    const ipad = navigator.maxTouchPoints > 1 && /iPad|iPhone|Macintosh/.test(navigator.userAgent);
+    return 'requestPointerLock' in Element.prototype && !ipad;
+  }
   locked() { return this.hasPointerLock ? document.pointerLockElement === $('gl') : !!this.engaged; }
   lock() {
     if (!this.hasPointerLock) { this.engaged = true; $('pause').style.display = 'none'; this.ignoreMouseUntil = performance.now() + 120; return; }

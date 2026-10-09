@@ -6,6 +6,7 @@ import { MODES } from '/shared/modes.js';
 import { MAPS, BIOMES } from '/shared/maps.js';
 import { WEAPONS, CATEGORIES, CLASSES, SIGHTS, MUZZLES, weaponsFor, defaultLoadout, sanitizeLoadout } from '/shared/weapons.js';
 import { buildMapImage, escapeHtml } from './hud.js';
+import { initTouch } from './touch.js';
 
 const $ = (id) => document.getElementById(id);
 const store = {
@@ -260,5 +261,6 @@ document.addEventListener('keydown', (e) => {
 });
 
 buildMenu();
+initTouch(() => game);
 net.connect();
 show('menu');

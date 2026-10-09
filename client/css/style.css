@@ -152,3 +152,35 @@ h2 { font-family: 'Rajdhani', sans-serif; letter-spacing: 2px; margin: 0 0 14px;
 #endScreen table { width: 100%; margin: 14px 0; border-collapse: collapse; font-size: 14px; } #endScreen td, #endScreen th { padding: 3px 8px; }
 #deathCam { position: absolute; left: 50%; top: 30%; transform: translateX(-50%); font-size: 22px; text-align: center; text-shadow: 0 2px 6px #000; display: none; }
 #fps { position: fixed; right: 6px; bottom: 2px; font: 11px monospace; color: rgba(255,255,255,0.5); z-index: 30; }
+
+/* ---------- touch controls ---------- */
+html, body { -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; touch-action: manipulation; }
+#touch { display: none; position: absolute; inset: 0; pointer-events: auto; touch-action: none; }
+body.touch #hud.active #touch { display: block; }
+#tStick { display: none; position: absolute; width: 120px; height: 120px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.35); background: rgba(255,255,255,0.08); pointer-events: none; }
+#tStick i { position: absolute; left: 35px; top: 35px; width: 50px; height: 50px; border-radius: 50%; background: rgba(255,255,255,0.45); }
+.tb { position: absolute; display: flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.4); background: rgba(10,14,20,0.45); color: #fff; font: 700 13px Rajdhani, 'Noto Sans KR', sans-serif; text-align: center; line-height: 1.1; user-select: none; -webkit-user-select: none; }
+.tb.down, .tb.on { background: rgba(255,122,26,0.7); border-color: #ff7a1a; }
+.tb.fire { right: 40px; bottom: 90px; width: 110px; height: 110px; font-size: 20px; background: rgba(255,60,40,0.35); border-color: rgba(255,120,100,0.8); }
+.tb.ads { right: 170px; bottom: 60px; width: 76px; height: 76px; }
+.tb.jump { right: 40px; bottom: 218px; }
+.tb.crouch { right: 120px; bottom: 192px; }
+.tb.prone { right: 200px; bottom: 150px; width: 54px; height: 54px; font-size: 11px; }
+.tb.reload { right: 40px; bottom: 20px; width: 56px; height: 56px; }
+.tb.gren { right: 120px; bottom: 270px; width: 56px; height: 56px; font-size: 11px; }
+.tb.use { left: 40px; top: 42%; width: 74px; height: 74px; font-size: 12px; }
+.tb.swap { left: 130px; top: 42%; width: 56px; height: 56px; }
+.tb.mode { left: 130px; top: calc(42% + 66px); width: 50px; height: 50px; font-size: 11px; }
+.tb.spot { left: 40px; top: calc(42% + 84px); width: 50px; height: 50px; font-size: 11px; }
+.tb.view { left: 40px; top: calc(42% - 70px); width: 50px; height: 50px; font-size: 11px; }
+.tb.score { right: 130px; top: 14px; width: 46px; height: 46px; font-size: 11px; }
+.tb.map { right: 74px; top: 14px; width: 46px; height: 46px; font-size: 11px; }
+.tb.pause { right: 18px; top: 14px; width: 46px; height: 46px; font-size: 18px; }
+@media (max-height: 520px) { .tb.fire { bottom: 40px; } .tb.ads { bottom: 20px; } .tb.jump { bottom: 150px; } .tb.crouch { bottom: 130px; } .tb.prone { bottom: 90px; } .tb.gren { bottom: 200px; } }
+body.touch #minimap { width: 150px; height: 150px; bottom: auto; top: 10px; left: 10px; }
+body.touch #status { bottom: 8px; right: auto; left: 12px; text-align: left; }
+body.touch #status .hp { margin-left: 0; width: 150px; margin-top: 26px; }
+body.touch #interact { top: 70%; }
+body.touch #objBar { transform: translateX(-50%) scale(0.8); top: 6px; }
+body.touch #compass, body.touch #killfeed { display: none; }
+body.touch #pause { pointer-events: auto; z-index: 30; }

@@ -15,7 +15,8 @@ for (const modeId of modes) {
   const t0 = Date.now();
   let ticks = 0;
   try {
-    while (m.time < seconds * 1000 && !m.ended) { m.tick(); m.flush(); ticks++; }
+    const dur = (modeId === 'conquest' ? Math.max(seconds, 300) : seconds) * 1000; // big maps need time for armies to meet
+    while (m.time < dur && !m.ended) { m.tick(); m.flush(); ticks++; }
   } catch (e) { console.error(modeId, e); failed = true; continue; }
   const ms = Date.now() - t0;
   const kills = [...m.players.values()].reduce((a, p) => a + p.kills, 0);
