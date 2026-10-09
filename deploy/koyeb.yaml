@@ -1,0 +1,10 @@
+# Koyeb (free instance) — reference settings for the web console or `koyeb app init`:
+#   Builder:        Dockerfile (repository root)
+#   Instance type:  free
+#   Region:         fra (Frankfurt) or was (Washington, D.C.)
+#   Exposed port:   8000 (HTTP, path /)
+#   Health check:   HTTP GET /health on port 8000
+# CLI equivalent:
+#   koyeb app init warfield --git github.com/<you>/<repo> --git-branch <branch> \
+#     --git-builder docker --instance-type free --regions fra \
+#     --ports 8000:http --routes /:8000 --checks 8000:http:/health

@@ -1,6 +1,6 @@
 # WARFIELD
 
-브라우저에서 바로 실행되는 대규모 3D FPS. Three.js 클라이언트 + Node.js 권한 서버(WebSocket) 구조이며 **Render**에 그대로 배포할 수 있습니다.
+브라우저에서 바로 실행되는 대규모 3D FPS. Three.js 클라이언트 + Node.js 권한 서버(WebSocket) 구조이며, Docker로 Oracle Cloud(영구 무료)·Koyeb(무료)·내 PC 등 어디든 올릴 수 있습니다.
 
 ## 주요 기능
 
@@ -25,14 +25,47 @@ npm start          # http://localhost:3000
 npm test           # 헤드리스로 모든 모드의 100인 봇 매치를 시뮬레이션해 검증
 ```
 
-## Render 배포
+## 무료로 서버 올리기
 
-1. 이 저장소를 GitHub에 푸시
-2. Render 대시보드 → **New → Blueprint** → 저장소 선택 (`render.yaml` 자동 인식)
-   - 또는 **New → Web Service**: Build `npm install --omit=dev`, Start `npm start`, Health check `/health`
-3. 배포된 `https://<이름>.onrender.com` 접속 — WebSocket(`/ws`)은 같은 주소로 자동 연결
+게임 서버는 **웹소켓을 계속 열어 두는 상시 실행 프로세스**라서, Vercel·Netlify 같은 정적/서버리스 호스팅에서는 돌아가지 않습니다. 저장소에 `Dockerfile`이 있어 아래 어디든 같은 방식으로 올라갑니다.
 
-> 100인 매치 1개당 서버 CPU 약 0.3–1ms/틱(20Hz)입니다. free 플랜은 슬립/CPU 제한이 있으니 실제 운영은 Starter 이상을 권장합니다.
+| 방법 | 비용 | 성능 | 특징 |
+|---|---|---|---|
+| **Oracle Cloud Always Free** (추천) | 영구 무료 (가입 시 카드 인증) | ARM 최대 4코어·24GB | 잠들지 않음. 100인 매치 여러 개도 여유 |
+| **Koyeb Free** | 무료 웹서비스 1개 | 0.1 vCPU·512MB | GitHub 연결만 하면 끝. 접속자가 없으면 1시간 뒤 잠들고, 다음 접속 때 몇 초 뒤 깨어남. 매치 1~2개 정도 |
+| **내 PC + Cloudflare Tunnel** | 완전 무료, 가입 불필요 | 내 PC 성능 | 친구들과 바로 플레이. PC가 켜져 있는 동안만 접속 가능 |
+
+### A. Oracle Cloud Always Free (상시 운영용)
+1. cloud.oracle.com 가입 → **Compute → Create instance** → Image: Ubuntu 22.04/24.04, Shape: `VM.Standard.A1.Flex`(Always Free, 예: 2 OCPU / 12GB)
+2. **Networking → VCN → Security List**에 Ingress 규칙 추가: TCP 포트 `80`, Source `0.0.0.0/0`
+3. SSH로 접속해서 한 줄 실행:
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/<계정>/<저장소>/<브랜치>/deploy/oracle-setup.sh | bash -s -- https://github.com/<계정>/<저장소>.git <브랜치>
+   ```
+4. `http://<VM 공인 IP>/` 접속. 서버는 재부팅해도 자동으로 다시 켜집니다.
+
+### B. Koyeb Free (가장 간단)
+1. koyeb.com 가입 → **Create Web Service → GitHub** → 이 저장소·브랜치 선택
+2. Builder: **Dockerfile**, Instance: **Free**, Region: Frankfurt 또는 Washington
+3. Port `8000`(HTTP), Health check `/health` → Deploy
+4. `https://<앱이름>.koyeb.app` 접속 (설정 요약: `deploy/koyeb.yaml`)
+
+### C. 내 PC에서 띄우고 친구 초대
+```bash
+npm install
+npm start                                   # http://localhost:3000
+cloudflared tunnel --url http://localhost:3000   # 출력된 https://xxxx.trycloudflare.com 주소를 친구에게 공유
+```
+`cloudflared`는 Cloudflare 공식 무료 도구입니다(Windows: `winget install Cloudflare.cloudflared`, macOS: `brew install cloudflared`). 계정이 필요 없고 웹소켓도 그대로 통과합니다.
+
+### Docker 직접 실행 (Fly.io, Google Cloud Run, 다른 VPS 등)
+```bash
+docker build -t warfield .
+docker run -d -p 80:8000 --restart unless-stopped warfield
+```
+서버는 `PORT` 환경변수를 따릅니다(컨테이너 기본값 8000). Render를 계속 쓰고 싶다면 `render.yaml`도 그대로 남아 있습니다.
+
+> 서버 부하: 100인 매치(봇 포함) 1개가 CPU 1코어 기준 20Hz 틱당 약 0.3–1ms입니다.
 
 ## 조작법
 
