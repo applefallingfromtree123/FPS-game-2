@@ -4,7 +4,7 @@ services:
   - type: web
     name: warfield
     runtime: node
-    plan: starter        # free 플랜도 동작하지만 15분 미사용 시 슬립되고 CPU가 매우 작습니다
+    plan: free           # 15분 동안 접속이 없으면 잠들고, 다음 접속 때 약 1분 뒤 깨어납니다
     buildCommand: npm install --omit=dev
     startCommand: npm start
     healthCheckPath: /health
