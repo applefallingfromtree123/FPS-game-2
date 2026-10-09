@@ -6,7 +6,7 @@ import { MODES } from '/shared/modes.js';
 import { MAPS, BIOMES } from '/shared/maps.js';
 import { WEAPONS, CATEGORIES, CLASSES, SIGHTS, MUZZLES, weaponsFor, defaultLoadout, sanitizeLoadout } from '/shared/weapons.js';
 import { buildMapImage, escapeHtml } from './hud.js';
-import { initTouch } from './touch.js';
+import { initTouch, isTouchDevice } from './touch.js';
 
 const $ = (id) => document.getElementById(id);
 const store = {
@@ -14,7 +14,7 @@ const store = {
   set(k, v) { try { localStorage.setItem('wf_' + k, JSON.stringify(v)); } catch {} },
 };
 
-const settings = Object.assign({ quality: 1, sens: 1, fov: 70, vol: 0.7, invert: false }, store.get('settings', {}));
+const settings = Object.assign({ quality: isTouchDevice() ? 0 : 1, sens: 1, fov: 70, vol: 0.7, invert: false }, store.get('settings', {}));
 let loadout = sanitizeLoadout(store.get('loadout', defaultLoadout('assault')));
 let selMode = store.get('mode', 'conquest');
 const net = new Net();
@@ -137,7 +137,8 @@ function renderLoadout(el, compact = false) {
 }
 
 // ---------------------------------------------------------------- lobby & match
-net.on('welcome', (m) => { $('online').textContent = `● 서버 온라인 · 접속자 ${m.online}명`; net.send({ t: 'hello', name: $('name').value }); });
+const CLIENT_BUILD = 'touch-3';
+net.on('welcome', (m) => { $('online').textContent = `● 서버 온라인 · 접속자 ${m.online}명 · 서버 ${m.build} · 화면 ${CLIENT_BUILD}${document.body.classList.contains('touch') ? ' · 터치 조작 켜짐' : ''}`; net.send({ t: 'hello', name: $('name').value }); });
 net.on('close', () => { $('online').textContent = '서버 연결 끊김 — 재연결 중…'; });
 net.on('lobby', (m) => {
   if (game) return;

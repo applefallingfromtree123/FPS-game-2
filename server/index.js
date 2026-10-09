@@ -9,16 +9,19 @@ import { Matchmaker } from './matchmaker.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, '..');
 const PORT = process.env.PORT || 3000;
+const BUILD = (process.env.RENDER_GIT_COMMIT || process.env.GIT_SHA || process.env.NF_GIT_COMMIT || 'local').slice(0, 7);
 
 const app = express();
-app.use(express.static(path.join(root, 'client'), { maxAge: '1h' }));
-app.use('/shared', express.static(path.join(root, 'shared'), { maxAge: '1h' }));
+// Game code changes often: always revalidate (ETag) so browsers never run a stale build.
+const noCache = (res) => res.setHeader('Cache-Control', 'no-cache');
+app.use(express.static(path.join(root, 'client'), { setHeaders: noCache }));
+app.use('/shared', express.static(path.join(root, 'shared'), { setHeaders: noCache }));
 app.use('/vendor/three', express.static(path.join(root, 'node_modules', 'three'), { maxAge: '7d' }));
 
 const mm = new Matchmaker();
 let online = 0;
 app.get('/health', (_req, res) => res.json({ ok: true }));
-app.get('/api/status', (_req, res) => res.json({ online, ...mm.stats() }));
+app.get('/api/status', (_req, res) => res.json({ build: BUILD, online, ...mm.stats() }));
 
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 64 * 1024 });
@@ -36,7 +39,7 @@ class Client {
 wss.on('connection', (ws) => {
   const c = new Client(ws);
   online++;
-  c.send({ t: 'welcome', online });
+  c.send({ t: 'welcome', online, build: BUILD });
   ws.on('message', (data, isBinary) => {
     if (isBinary) return;
     // simple flood protection

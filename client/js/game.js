@@ -549,7 +549,7 @@ export class Game {
       const a = this.state.area; const p = this.myPos();
       this.outOfBounds = Math.hypot(p.x - a[0], p.z - a[1]) > a[2];
     } else this.outOfBounds = false;
-    if (this.frame % 30 === 0) $('fps').textContent = `${Math.round(1 / Math.max(dt, 0.001))} fps · ${this.ping || 0}ms`;
+    if (this.frame % 30 === 0) $('fps').textContent = `${Math.round(1 / Math.max(dt, 0.001))} fps · ${this.ping || 0}ms` + (document.body.classList.contains('touch') ? ` · 터치 ${window.__tc || 0}` : '');
   }
 
   updatePlayer(dt, now, mdx, mdy, sens) {

@@ -45,6 +45,7 @@ export function initTouch(getGame) {
   const clearMove = (g) => { if (g) for (const c of ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ShiftLeft']) g.keys[c] = false; };
 
   const onStart = (e) => {
+    window.__tc = (window.__tc || 0) + e.changedTouches.length; // diagnostics shown in the corner
     const g = G(); if (!g || !g.running) return;
     e.preventDefault();
     for (const t of e.changedTouches) {
