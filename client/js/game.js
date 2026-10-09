@@ -498,8 +498,8 @@ export class Game {
       requestAnimationFrame(loop);
       const dt = Math.min(0.05, (now - this.last) / 1000);
       this.last = now;
-      this.update(dt, now);
-      this.render();
+      try { this.update(dt, now); } catch (e) { reportError('update', e); }
+      try { this.render(); } catch (e) { reportError('render', e); }
     };
     requestAnimationFrame(loop);
     this.pingTimer = setInterval(() => this.net.send({ t: 'pi', c: performance.now() }), 2000);
@@ -519,17 +519,19 @@ export class Game {
     const sens = this.settings.sens * 0.0022 * (this.camera.fov / this.settings.fov);
     const mdx = this.mouse.dx, mdy = this.mouse.dy * (this.settings.invert ? -1 : 1);
     this.mouse.dx = this.mouse.dy = 0;
-    if (this.me.alive) {
-      if (this.vehicle) this.updateVehicle(dt, now, mdx, mdy, sens);
-      else this.updatePlayer(dt, now, mdx, mdy, sens);
-    } else this.updateDeathCam(dt, now);
+    const safe = (name, fn) => { try { fn(); } catch (e) { reportError(name, e); } };
+    safe('input', () => {
+      if (this.me.alive) {
+        if (this.vehicle) this.updateVehicle(dt, now, mdx, mdy, sens);
+        else this.updatePlayer(dt, now, mdx, mdy, sens);
+      } else this.updateDeathCam(dt, now);
+    });
     this.mouse.leftPressed = this.mouse.rightPressed = false;
-    this.updateRemote(dt);
-    this.env.update(dt, this.camera.position, this.camera);
-    this.fx.update(dt);
+    safe('remote', () => this.updateRemote(dt));
+    safe('env', () => this.env.update(dt, this.camera.position, this.camera));
+    safe('fx', () => this.fx.update(dt));
     if (this.fx.shake > 0) { this.camera.rotation.x += (Math.random() - 0.5) * this.fx.shake * 0.05; this.camera.rotation.y += (Math.random() - 0.5) * this.fx.shake * 0.05; }
-    this.hud.update(dt);
-    this.updateHudPanels(now);
+    safe('hud', () => { this.hud.update(dt); this.updateHudPanels(now); });
     this.grade.uniforms.uDamage.value = this.me.alive ? Math.max(0, (60 - this.me.hp) / 60) : 0.8;
     const L = this.audio.listener; const cp = this.camera.position; L.x = cp.x; L.y = cp.y; L.z = cp.z; L.yaw = this.cam.yaw;
     // network state 20Hz
@@ -1192,3 +1194,16 @@ export class Game {
 
 const C4VEL = 10;
 function tick() { return new Promise((r) => setTimeout(r, 0)); }
+
+// Show runtime errors on screen so they can be reported (the loop keeps running either way).
+const seenErrors = new Set();
+export function reportError(where, e) {
+  const msg = `${where}: ${e && e.message ? e.message : e}`;
+  if (seenErrors.has(msg)) return;
+  seenErrors.add(msg);
+  console.error(msg, e);
+  let box = document.getElementById('errbox');
+  if (!box) { box = document.createElement('div'); box.id = 'errbox'; document.body.appendChild(box); }
+  const stack = e && e.stack ? String(e.stack).split('\n').slice(0, 3).join(' | ') : '';
+  box.textContent = `오류 ${seenErrors.size}개 — ` + [...seenErrors].slice(-3).join(' // ') + (stack ? '\n' + stack.slice(0, 300) : '');
+}

@@ -1,7 +1,7 @@
 // Menu, loadout editor, matchmaking lobby, deploy screen and game lifecycle.
 import { Net } from './net.js';
 import { Audio } from './audio.js';
-import { Game } from './game.js';
+import { Game, reportError } from './game.js';
 import { MODES } from '/shared/modes.js';
 import { MAPS, BIOMES } from '/shared/maps.js';
 import { WEAPONS, CATEGORIES, CLASSES, SIGHTS, MUZZLES, weaponsFor, defaultLoadout, sanitizeLoadout } from '/shared/weapons.js';
@@ -137,7 +137,7 @@ function renderLoadout(el, compact = false) {
 }
 
 // ---------------------------------------------------------------- lobby & match
-const CLIENT_BUILD = 'touch-3';
+const CLIENT_BUILD = 'touch-4';
 net.on('welcome', (m) => { $('online').textContent = `● 서버 온라인 · 접속자 ${m.online}명 · 서버 ${m.build} · 화면 ${CLIENT_BUILD}${document.body.classList.contains('touch') ? ' · 터치 조작 켜짐' : ''}`; net.send({ t: 'hello', name: $('name').value }); });
 net.on('close', () => { $('online').textContent = '서버 연결 끊김 — 재연결 중…'; });
 net.on('lobby', (m) => {
@@ -261,6 +261,8 @@ document.addEventListener('keydown', (e) => {
   if (e.code === 'Escape' && game && !game.me.alive && !game.ended && !game.mode.respawn) exitMatch(true);
 });
 
+window.addEventListener('error', (e) => reportError('error', e.error || e.message));
+window.addEventListener('unhandledrejection', (e) => reportError('promise', e.reason));
 buildMenu();
 initTouch(() => game);
 net.connect();

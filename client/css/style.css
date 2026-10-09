@@ -184,3 +184,5 @@ body.touch #interact { top: 70%; }
 body.touch #objBar { transform: translateX(-50%) scale(0.8); top: 6px; }
 body.touch #compass, body.touch #killfeed { display: none; }
 body.touch #pause { pointer-events: auto; z-index: 30; }
+
+#errbox { position: fixed; left: 8px; right: 8px; top: 8px; z-index: 99; padding: 6px 10px; background: rgba(150,0,0,0.85); color: #fff; font: 12px/1.4 monospace; white-space: pre-wrap; word-break: break-all; pointer-events: none; max-height: 30vh; overflow: hidden; }
