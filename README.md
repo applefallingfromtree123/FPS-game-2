@@ -44,6 +44,9 @@ npm test           # 헤드리스로 모든 모드의 100인 봇 매치를 시�
    ```
 4. `http://<VM 공인 IP>/` 접속. 서버는 재부팅해도 자동으로 다시 켜집니다.
 
+### Northflank (카드 인증 후 무료, 상시 실행)
+GitHub 저장소를 연결해 Dockerfile로 빌드하고 포트 8000(HTTP)을 공개하면 됩니다. 단계별 설정은 `deploy/northflank.md`를 보세요.
+
 ### B. Koyeb Free (가장 간단)
 1. koyeb.com 가입 → **Create Web Service → GitHub** → 이 저장소·브랜치 선택
 2. Builder: **Dockerfile**, Instance: **Free**, Region: Frankfurt 또는 Washington
