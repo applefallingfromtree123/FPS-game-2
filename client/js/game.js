@@ -173,7 +173,9 @@ export class Game {
     const c = $('gl');
     this._kd = (e) => {
       if (e.code === 'Tab') { e.preventDefault(); $('scoreboard').style.display = 'block'; this.hud.renderScoreboard(); }
+      if (!this.hasPointerLock && e.code === 'Escape' && this.engaged) { this.unlock(); return; }
       if (!this.locked()) return;
+      if (e.code === 'Space' || e.code.startsWith('Arrow') || e.code === 'Tab') e.preventDefault();
       this.keys[e.code] = true;
       if (e.repeat) return;
       this.onKey(e.code);
@@ -185,9 +187,12 @@ export class Game {
     };
     this._mm = (e) => {
       // Chrome can report a huge bogus delta right after the pointer gets locked
+      let mx = e.movementX, my = e.movementY;
+      if (mx === undefined) { mx = this._lx === undefined ? 0 : e.clientX - this._lx; my = this._ly === undefined ? 0 : e.clientY - this._ly; }
+      this._lx = e.clientX; this._ly = e.clientY;
       if (!this.locked() || performance.now() < this.ignoreMouseUntil) return;
-      if (Math.abs(e.movementX) > 350 || Math.abs(e.movementY) > 350) return;
-      this.mouse.dx += e.movementX; this.mouse.dy += e.movementY;
+      if (Math.abs(mx) > 350 || Math.abs(my) > 350) return;
+      this.mouse.dx += mx; this.mouse.dy += my;
     };
     this._md = (e) => {
       this.audio.init();
@@ -196,6 +201,7 @@ export class Game {
       if (e.button === 2) { this.mouse.right = true; this.mouse.rightPressed = true; }
     };
     this._mu = (e) => { if (e.button === 0) this.mouse.left = false; if (e.button === 2) this.mouse.right = false; };
+    window.addEventListener('blur', () => { if (!this.hasPointerLock) this.unlock(); });
     this._plc = () => {
       if (!this.locked() && this.me.alive && !this.ended && $('deploy').style.display !== 'flex') { $('pause').style.display = 'flex'; }
       else if (this.locked()) { $('pause').style.display = 'none'; this.ignoreMouseUntil = performance.now() + 120; }
@@ -216,8 +222,18 @@ export class Game {
     window.removeEventListener('resize', this._onResize);
   }
 
-  locked() { return document.pointerLockElement === $('gl'); }
-  lock() { try { const p = $('gl').requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch {} }
+  // Pointer Lock is missing on iPad/iPhone Safari: fall back to an "engaged" flag so keyboard and mouse still work.
+  get hasPointerLock() { return 'requestPointerLock' in Element.prototype; }
+  locked() { return this.hasPointerLock ? document.pointerLockElement === $('gl') : !!this.engaged; }
+  lock() {
+    if (!this.hasPointerLock) { this.engaged = true; $('pause').style.display = 'none'; this.ignoreMouseUntil = performance.now() + 120; return; }
+    try { const p = $('gl').requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch {}
+  }
+  unlock() {
+    if (this.hasPointerLock) { if (document.pointerLockElement) document.exitPointerLock(); return; }
+    this.engaged = false; this.keys = {}; this.mouse.left = this.mouse.right = false;
+    if (this.me.alive && !this.ended && $('deploy').style.display !== 'flex') $('pause').style.display = 'flex';
+  }
 
   onKey(code) {
     if (!this.me.alive) return;
@@ -490,7 +506,7 @@ export class Game {
     clearInterval(this.pingTimer);
     this.unbindInput();
     this.audio.setEngine(null);
-    if (document.pointerLockElement) document.exitPointerLock();
+    this.unlock();
     this.renderer.dispose();
   }
 
@@ -1166,7 +1182,7 @@ export class Game {
       <button class="primary" id="btnEndMenu">메뉴로</button>`;
     $('endScreen').style.display = 'block';
     $('btnEndMenu').onclick = () => this.ui.exitMatch();
-    if (document.pointerLockElement) document.exitPointerLock();
+    this.engaged = false; if (document.pointerLockElement) document.exitPointerLock();
   }
 }
 

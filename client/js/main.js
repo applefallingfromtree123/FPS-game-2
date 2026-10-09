@@ -220,6 +220,7 @@ let spawnChoice = 'hq';
 const ui = {
   showDeploy(g) {
     if (document.pointerLockElement) document.exitPointerLock();
+    g.engaged = false;
     $('deploy').style.display = 'flex';
     renderLoadout($('deployLoadout'), true);
     const draw = () => {
