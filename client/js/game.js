@@ -986,7 +986,7 @@ export class Game {
         const [, killer, victim, wid, head] = e;
         this.hud.killfeed(killer, victim, wid, head);
         if (victim === this.me.id) this.onDeath(killer);
-        else if (killer === this.me.id) { this.audio.kill(); const r = this.roster.get(victim); this.hud.notice(`+${100 + (head ? 25 : 0)}`, `${r ? r.name : ''} 처치${head ? ' · 헤드샷' : ''}`, '#ffd84a'); }
+        else if (killer === this.me.id) { this.audio.kill(); const r = this.roster.get(victim); this.hud.notice(`+${100 + (head ? 25 : 0)}`, `${r ? r.name : ''} 처치${head ? ' · 헤드샷' : ''}`, '#cfefff'); }
         const s = this.soldiers.get(victim); if (s) s.alive = false;
         break;
       }
@@ -1021,7 +1021,8 @@ export class Game {
         this.hud.notice(`거점 ${e[1]} ${mine ? '점령' : '상실'}`, '', mine ? '#42b8ff' : '#ff4b3a');
         break;
       }
-      case 'sec': this.hud.notice(this.state && this.state.att === this.me.team ? '구역 돌파! 전진하라' : '구역 상실! 후퇴하라', `섹터 ${e[1] + 1}`, '#ffd27a'); break;
+      case 'hill': this.hud.notice('거점 이동', '새 하드포인트 위치를 확인하세요', '#9fd8ff'); break;
+      case 'sec': this.hud.notice(this.state && this.state.att === this.me.team ? '구역 돌파! 전진하라' : '구역 상실! 후퇴하라', `섹터 ${e[1] + 1}`, '#bfe9ff'); break;
       case 'bx': {
         const m = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.35, 0.4), new THREE.MeshStandardMaterial({ color: 0x4d5a37, roughness: 0.7 }));
         m.position.set(e[2], e[3] + 0.18, e[4]); m.castShadow = true; this.scene.add(m); this.boxes.set(e[1], m);
@@ -1065,11 +1066,20 @@ export class Game {
         if (this.me.loadout && this.me.loadout.cls === 'recon') this.c4Count = Math.min(3, this.c4Count + 1);
         break;
       }
+      case 'gm': {
+        // gun master: the server promoted our weapon
+        const w = WEAPONS[e[1]];
+        this.me.loadout.primary = w.id; this.me.loadout.sight = w.sight; this.me.loadout.muzzle = w.muzzleDefault;
+        this.ammo.set(w.id, { mag: w.mag, res: w.reserve });
+        this.slot = -1; this.switchSlot(0);
+        this.hud.notice(w.name, `무기 ${e[2] + 1} / ${this.mode.scoreLimit}`, '#9fd8ff');
+        break;
+      }
       case 'lw': {
         this.brWeapon = e[1];
         this.ammo.set(e[1], { mag: WEAPONS[e[1]].mag, res: WEAPONS[e[1]].reserve });
         this.slot = -1; this.switchSlot(0);
-        this.hud.notice(WEAPONS[e[1]].name, '무기 획득', '#ffd27a');
+        this.hud.notice(WEAPONS[e[1]].name, '무기 획득', '#bfe9ff');
         break;
       }
     }
@@ -1184,7 +1194,7 @@ export class Game {
     $('endScreen').innerHTML = `<div class="win ${won ? 'victory' : 'defeat'}">${title}</div>
       <div>${this.mode.name} · ${this.map.name}</div>
       <table><tr><th>#</th><th style="text-align:left">이름</th><th>K</th><th>D</th><th>점수</th></tr>
-      ${rows.map((x, i) => `<tr style="${x.id === g.me.id ? 'color:#ffd84a' : ''}"><td>${i + 1}</td><td style="text-align:left">${x.r.name}${x.r.bot ? ' <small style="opacity:.5">BOT</small>' : ''}</td><td>${x.k}</td><td>${x.d}</td><td>${x.s}</td></tr>`).join('')}</table>
+      ${rows.map((x, i) => `<tr style="${x.id === g.me.id ? 'color:#ffffff' : ''}"><td>${i + 1}</td><td style="text-align:left">${x.r.name}${x.r.bot ? ' <small style="opacity:.5">BOT</small>' : ''}</td><td>${x.k}</td><td>${x.d}</td><td>${x.s}</td></tr>`).join('')}</table>
       <button class="primary" id="btnEndMenu">메뉴로</button>`;
     $('endScreen').style.display = 'block';
     $('btnEndMenu').onclick = () => this.ui.exitMatch();

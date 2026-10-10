@@ -99,7 +99,7 @@ export class HUD {
     const my = g.me.team;
     if (s.tk && mode.teams === 2) {
       const other = 1 - my;
-      if (g.modeId === 'tdm') html += `<div class="ticket t0">${s.k[my]}</div>`;
+      if (mode.kind === 'tdm') html += `<div class="ticket t0">${s.k[my]}</div>`;
       else if (g.modeId === 'breakthrough') html += `<div class="ticket ${s.att === my ? 't0' : 't1'}">${s.tk[s.att]}</div>`;
       else html += `<div class="ticket t0">${s.tk[my]}</div>`;
     }
@@ -114,16 +114,16 @@ export class HUD {
     }
     if (s.tk && mode.teams === 2) {
       const other = 1 - my;
-      if (g.modeId === 'tdm') html += `<div class="ticket t1">${s.k[other]}</div>`;
+      if (mode.kind === 'tdm') html += `<div class="ticket t1">${s.k[other]}</div>`;
       else if (g.modeId === 'breakthrough') html += `<div class="ticket ${s.att === my ? 't1' : 't0'}">${s.att === my ? '방어' : '공격'}</div>`;
       else html += `<div class="ticket t1">${s.tk[other]}</div>`;
     }
-    if (g.modeId === 'ffa') {
+    if (mode.kind === 'ffa') {
       const top = [...g.board.values()].sort((a, b) => b[1] - a[1])[0];
       const mine = g.board.get(g.me.id);
       html += `<div class="ticket t0">${mine ? mine[1] : 0}</div><div class="timeleft">/ ${mode.scoreLimit} · 1위 ${top ? top[1] : 0}</div>`;
     }
-    if (s.alive) html += `<div class="ticket" style="color:#ffd27a">${s.alive[0]}<small style="font-size:13px"> 생존 · ${s.alive[1]}분대</small></div>`;
+    if (s.alive) html += `<div class="ticket" style="color:#bfe9ff">${s.alive[0]}<small style="font-size:13px"> 생존 · ${s.alive[1]}분대</small></div>`;
     const tl = s.tl;
     html += `<div class="timeleft">${Math.floor(tl / 60)}:${String(tl % 60).padStart(2, '0')}</div>`;
     if (s.zone) html += `<div class="timeleft" style="color:#ff9a5a">화염지대 ${s.zone[6] > 0 ? '수축까지 ' + s.zone[6] + '초' : '수축 중'}</div>`;
@@ -189,7 +189,7 @@ export class HUD {
         ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.fillStyle = 'rgba(0,0,0,0.35)';
         ctx.fillRect(-10, -10, 20, 20); ctx.strokeRect(-10, -10, 20, 20); ctx.restore();
         ctx.fillStyle = col; ctx.fillText(id, p[0], p[1] + 6);
-        ctx.font = '600 11px Rajdhani'; ctx.fillStyle = contested ? '#ffd27a' : '#fff';
+        ctx.font = '600 11px Rajdhani'; ctx.fillStyle = contested ? '#bfe9ff' : '#fff';
         ctx.fillText(Math.round(Math.hypot(x - me.x, z - me.z)) + 'm', p[0], p[1] + 26);
         ctx.font = '700 16px Rajdhani, sans-serif';
       }
@@ -201,7 +201,7 @@ export class HUD {
         const d = m.position.distanceTo(g.camera.position);
         if (d > 60) continue;
         const p = proj(m.position.x, m.position.y + 1.2, m.position.z);
-        if (p) { ctx.fillStyle = '#ffd27a'; ctx.fillText('▣ 보급', p[0], p[1]); }
+        if (p) { ctx.fillStyle = '#bfe9ff'; ctx.fillText('▣ 보급', p[0], p[1]); }
       }
     }
     // crosshair
@@ -319,7 +319,7 @@ export class HUD {
     }
     ctx.restore();
     // player arrow (always up)
-    ctx.fillStyle = '#ffd84a';
+    ctx.fillStyle = '#cfefff';
     ctx.beginPath(); ctx.moveTo(S / 2, S / 2 - 7); ctx.lineTo(S / 2 + 5, S / 2 + 5); ctx.lineTo(S / 2 - 5, S / 2 + 5); ctx.fill();
   }
 
@@ -357,7 +357,7 @@ export class HUD {
     }
     const me = g.myPos();
     const [mx, mz] = P(me.x, me.z);
-    ctx.fillStyle = '#ffd84a'; ctx.beginPath(); ctx.arc(mx, mz, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#cfefff'; ctx.beginPath(); ctx.arc(mx, mz, 5, 0, Math.PI * 2); ctx.fill();
   }
 
   renderScoreboard() {

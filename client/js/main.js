@@ -37,9 +37,10 @@ function buildMenu() {
     });
   }
   const modes = $('modes');
-  modes.innerHTML = Object.values(MODES).map((m) => `<div class="mode-card ${m.br ? 'redsec' : ''}" data-mode="${m.id}"><div class="cap">${m.maxPlayers}명</div><div class="en">${m.en}</div><div class="ko">${m.name}</div><div class="desc">${m.desc}</div></div>`).join('');
-  const sel = () => { for (const c of modes.children) c.classList.toggle('sel', c.dataset.mode === selMode); };
-  for (const c of modes.children) c.addEventListener('click', () => { selMode = c.dataset.mode; store.set('mode', selMode); sel(); });
+  const GROUPS = [['large', '대규모 전투'], ['small', '소규모 보병전'], ['special', '특수 모드']];
+  modes.innerHTML = GROUPS.map(([g, label]) => `<div class="grp">${label}</div>` + Object.values(MODES).filter((m) => m.group === g).map((m) => `<div class="mode-card ${m.br ? 'redsec' : ''}" data-mode="${m.id}"><div class="cap">${m.maxPlayers}명</div><div class="en">${m.en}</div><div class="ko">${m.name}</div><div class="desc">${m.desc}</div></div>`).join('')).join('');
+  const sel = () => { for (const c of modes.querySelectorAll('.mode-card')) c.classList.toggle('sel', c.dataset.mode === selMode); };
+  for (const c of modes.querySelectorAll('.mode-card')) c.addEventListener('click', () => { selMode = c.dataset.mode; store.set('mode', selMode); sel(); });
   sel();
   $('mapSel').innerHTML = '<option value="-1">무작위 전장</option>' + MAPS.map((m) => `<option value="${m.id}">${m.name} — ${biomeName(m.biome)}, ${m.size}m</option>`).join('');
   $('btnFind').onclick = () => queue(false);
@@ -189,7 +190,7 @@ net.on('match', async (m) => {
   for (const q of earlyMsgs) route(q);
   earlyMsgs.length = 0;
   if (!m.br) ui.showDeploy(g);
-  else g.hud.notice('강하 준비', 'W/A/S/D로 활강 · Space 낙하산', '#ffd27a');
+  else g.hud.notice('강하 준비', 'W/A/S/D로 활강 · Space 낙하산', '#bfe9ff');
 });
 
 const earlyMsgs = [];
@@ -226,6 +227,8 @@ const ui = {
     g.engaged = false;
     $('deploy').style.display = 'flex';
     renderLoadout($('deployLoadout'), true);
+    const md = MODES[g.modeId];
+    $('deployNote').textContent = md.cats ? '이 모드는 사용 가능한 무기가 제한됩니다. 허용되지 않는 주무기는 자동으로 교체됩니다.' : md.ladder ? '건마스터: 킬할 때마다 무기가 자동으로 바뀝니다.' : md.dmgMult ? '하드코어: 피해량 증가, 체력 자동 회복 없음.' : '';
     const draw = () => {
       if ($('deploy').style.display !== 'flex' || !game) return;
       const opts = g.spawnOptions();
@@ -241,7 +244,7 @@ const ui = {
         ctx.fillRect(px - 9, pz - 9, 18, 18); ctx.fillStyle = '#000'; ctx.font = '700 14px Rajdhani'; ctx.textAlign = 'center'; ctx.fillText(id, px, pz + 5);
       }
       if (g.state && g.state.area) { const [x, z] = P(g.state.area[0], g.state.area[1]); ctx.strokeStyle = '#ff5a3a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, z, g.state.area[2] * sc, 0, 7); ctx.stroke(); }
-      for (const o of opts) if (o.x !== undefined) { const [x, z] = P(o.x, o.z); ctx.strokeStyle = o.id === spawnChoice ? '#ffd84a' : '#fff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, z, o.id === spawnChoice ? 10 : 6, 0, 7); ctx.stroke(); }
+      for (const o of opts) if (o.x !== undefined) { const [x, z] = P(o.x, o.z); ctx.strokeStyle = o.id === spawnChoice ? '#cfefff' : '#fff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, z, o.id === spawnChoice ? 10 : 6, 0, 7); ctx.stroke(); }
       const wait = Math.max(0, Math.ceil((g.deathAt + 5000 - performance.now()) / 1000));
       $('deployTimer').textContent = g.deathAt && wait > 0 ? `${wait}초 후 배치 가능` : '';
       setTimeout(draw, 500);

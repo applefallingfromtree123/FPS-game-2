@@ -591,6 +591,7 @@ export class Environment {
         f = { g, cloth, ring, base: cloth.geometry.attributes.position.array.slice() };
         this.flagMeshes.set(o.id, f);
       }
+      f.g.position.set(o.x, this.world.heightAt(o.x, o.z), o.z); // hardpoint hills relocate
       const color = o.owner < 0 ? 0xdddddd : o.owner === myTeam ? 0x42b8ff : 0xff4b3a;
       f.cloth.material.color.setHex(color);
       f.ring.material.color.setHex(color);

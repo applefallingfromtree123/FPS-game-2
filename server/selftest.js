@@ -20,9 +20,10 @@ for (const modeId of modes) {
   } catch (e) { console.error(modeId, e); failed = true; continue; }
   const ms = Date.now() - t0;
   const kills = [...m.players.values()].reduce((a, p) => a + p.kills, 0);
+  const extra = m.ladder ? ` ladderTop=${Math.max(...[...m.players.values()].map((p) => p.kills))}` : m.hillSpots ? ` hill@${m.hillIdx}` : '';
   const vehUsed = m.vehicles.filter((v) => v.driver >= 0).length;
   const caps = m.objectives.map((o) => `${o.id}:${o.owner}`).join(' ');
-  console.log(`${modeId.padEnd(13)} ${m.map.name.padEnd(18)} ${m.players.size}p  sim ${Math.round(m.time / 1000)}s in ${ms}ms (${(ms / ticks).toFixed(2)}ms/tick)  kills=${kills} vehiclesDriven=${vehUsed} tickets=${m.tickets.map(Math.round)} flags=[${caps}] ended=${m.ended}`);
+  console.log(`${modeId.padEnd(13)} ${m.map.name.padEnd(18)} ${m.players.size}p  sim ${Math.round(m.time / 1000)}s in ${ms}ms (${(ms / ticks).toFixed(2)}ms/tick)  kills=${kills} vehiclesDriven=${vehUsed} tickets=${m.tickets.map(Math.round)} flags=[${caps}] ended=${m.ended}${extra}`);
   if (kills === 0) { console.error('  !! no kills happened'); failed = true; }
 }
 process.exit(failed ? 1 : 0);

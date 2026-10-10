@@ -46,6 +46,7 @@ export class Match {
     this.kills = [0, 0];
     this.objectives = [];
     this.area = null;
+    this.ladder = m.ladder ? m.ladder.map((n) => WEAPON_BY_NAME[n].id) : null;
     if (m.id === 'conquest') {
       this.objectives = w.sites.map((s) => this._makeFlag(s.id, s.x, s.z, s.radius));
       // each team starts owning the flag nearest their base
@@ -61,7 +62,21 @@ export class Match {
       for (const o of this.objectives) { o.owner = 1; o.prog = 100; }
       this.attackers = 0;
       this.tickets = [m.tickets, 0];
-    } else if (m.id === 'domination') {
+    } else if (m.kind === 'hill') {
+      // one hill that relocates every few seconds
+      const c = w.centerSite;
+      const ax = Math.cos(w.axisAngle), az = Math.sin(w.axisAngle);
+      this.area = { x: c.x, z: c.z, r: m.area };
+      this.hillSpots = [-0.55, 0.0, 0.55, 0.0].map((k, i) => {
+        const side = i === 1 ? 0.5 : i === 3 ? -0.5 : 0;
+        const spot = this.findFreeSpot(c.x + ax * k * m.area + -az * side * m.area, c.z + az * k * m.area + ax * side * m.area, 6);
+        return spot;
+      });
+      this.hillIdx = 1;
+      this.hillMoveAt = m.hillSeconds;
+      const h = this.hillSpots[this.hillIdx];
+      this.objectives = [this._makeFlag('H', h.x, h.z, 16)];
+    } else if (m.kind === 'dom') {
       const c = w.centerSite;
       const ax = Math.cos(w.axisAngle), az = Math.sin(w.axisAngle);
       this.area = { x: c.x, z: c.z, r: m.area };
@@ -71,7 +86,7 @@ export class Match {
         return this._makeFlag(id, spot.x, spot.z, 14);
       });
       this.objectives = pts;
-    } else if (m.id === 'tdm' || m.id === 'ffa') {
+    } else if (m.kind === 'tdm' || m.kind === 'ffa') {
       const c = w.centerSite;
       this.area = { x: c.x, z: c.z, r: m.area };
     } else if (m.br) {
@@ -152,6 +167,7 @@ export class Match {
       brWeapon: -1, ping: 0,
     };
     p.loadout = isBot ? makeBotLoadout(this.rng, this.mode) : sanitizeLoadout(loadout);
+    this.applyModeLoadout(p);
     if (this.mode.br) { p.loadout.primary = -1; p.loadout.gadget = -1; p.slot = 1; }
     this._assignTeam(p, team, squad);
     p.weaponId = this.currentWeapon(p);
@@ -159,6 +175,37 @@ export class Match {
     if (isBot) p.bot = new BotBrain(this, p);
     this.events.push(['j', id, name, p.team, p.squad, isBot ? 1 : 0, p.loadout.cls]);
     return p;
+  }
+
+  // Mode rules that override the chosen loadout: allowed weapon categories, gadget ban, gun master ladder.
+  applyModeLoadout(p) {
+    const m = this.mode, l = p.loadout;
+    if (m.cats) {
+      const cur = WEAPONS[l.primary];
+      if (!cur || !m.cats.includes(cur.cat)) {
+        const pool = WEAPONS.filter((w) => w.slot === 'primary' && m.cats.includes(w.cat));
+        const pick = pool.find((w) => w.classes.includes(l.cls)) || pool[0];
+        l.primary = pick.id;
+        l.sight = pick.sight;
+        l.muzzle = m.cats.includes('sniper') ? 'suppressor' : pick.muzzleDefault;
+      }
+    }
+    if (m.noGadget) l.gadget = -1;
+    if (this.ladder) {
+      const lv = Math.min(p.kills, this.ladder.length - 1);
+      const w = WEAPONS[this.ladder[lv]];
+      l.primary = w.id; l.sight = w.sight; l.muzzle = w.muzzleDefault; l.gadget = -1;
+    }
+    if (p.bot && (m.cats || this.ladder)) { p.bot.mag = {}; p.bot.reloadUntil = 0; }
+  }
+
+  advanceLadder(p) {
+    if (!this.ladder) return;
+    const before = p.loadout.primary;
+    this.applyModeLoadout(p);
+    if (p.loadout.primary === before) return;
+    if (p.slot === 0) p.weaponId = this.currentWeapon(p);
+    if (!p.isBot) p.pev.push(['gm', p.loadout.primary, Math.min(p.kills, this.ladder.length)]);
   }
 
   _assignTeam(p, team, squad) {
@@ -277,6 +324,7 @@ export class Match {
     if (loadout && !p.isBot) {
       const keepBr = p.brWeapon;
       p.loadout = sanitizeLoadout(loadout);
+      this.applyModeLoadout(p);
       if (this.mode.br) { p.loadout.primary = -1; p.loadout.gadget = -1; p.brWeapon = keepBr; }
     }
     const w = this.world;
@@ -490,6 +538,7 @@ export class Match {
   applyDamage(q, dmg, attacker, weaponId, head, fromX, fromZ) {
     if (!q.alive || dmg <= 0) return;
     if (attacker && attacker.id !== q.id && !this.isEnemy(attacker, q)) return;
+    if (this.mode.dmgMult && attacker) dmg *= this.mode.dmgMult;
     q.hp -= dmg;
     q.lastDamageAt = this.time;
     q.lastDamager = attacker ? attacker.id : -1;
@@ -513,8 +562,9 @@ export class Match {
       attacker.kills++;
       attacker.score += 100 + (head ? 25 : 0);
       if (this.mode.teams === 2) this.kills[attacker.team]++;
+      if (this.ladder) this.advanceLadder(attacker);
     }
-    if (this.mode.teams === 2 && this.mode.tickets && !(this.mode.id === 'breakthrough' && q.team !== this.attackers)) {
+    if (this.mode.teams === 2 && this.mode.tickets && !this.mode.noDeathTickets && !(this.mode.id === 'breakthrough' && q.team !== this.attackers)) {
       this.tickets[q.team] = Math.max(0, this.tickets[q.team] - 1);
     }
     if (this.mode.br) {
@@ -848,7 +898,7 @@ export class Match {
     // health regen, boxes, parachutes, bounds
     for (const p of this.players.values()) {
       if (!p.alive) continue;
-      if (this.time - p.lastDamageAt > 5000 && p.hp < 100) p.hp = Math.min(100, p.hp + 14 * dt);
+      if (!this.mode.noRegen && this.time - p.lastDamageAt > 5000 && p.hp < 100) p.hp = Math.min(100, p.hp + 14 * dt);
       if (this.area && p.vehicle < 0) {
         const d = Math.hypot(p.x - this.area.x, p.z - this.area.z);
         if (d > this.area.r + 15) { if (!p.outSince) p.outSince = this.time; else if (this.time - p.outSince > 10000) this.killPlayer(p, null, 254, false); }
@@ -899,7 +949,7 @@ export class Match {
       const diff = o.counts[0] - o.counts[1];
       o.contested = o.counts[0] > 0 && o.counts[1] > 0;
       if (locked || diff === 0) continue;
-      const rate = 7 * Math.min(Math.abs(diff), 4) * dt * (m.id === 'domination' ? 1.6 : 1);
+      const rate = 7 * Math.min(Math.abs(diff), 4) * dt * (m.kind === 'dom' ? 1.6 : m.kind === 'hill' ? 1.4 : 1);
       const prev = o.prog;
       // prog: -100 = team0, +100 = team1
       if (diff > 0) o.prog = Math.max(-100, o.prog - rate); else o.prog = Math.min(100, o.prog + rate);
@@ -908,12 +958,13 @@ export class Match {
       if (o.prog >= 100 && o.owner !== 1) this._captured(o, 1);
     }
     // ticket bleed
-    if (m.id === 'conquest' || m.id === 'domination') {
+    if (m.kind === 'conquest' || m.kind === 'dom' || m.kind === 'hill') {
+      if (m.kind === 'hill' && t >= this.hillMoveAt) this._moveHill(t);
       const own = [0, 0];
       for (const o of this.objectives) if (o.owner >= 0) own[o.owner]++;
       const half = this.objectives.length / 2;
       for (let team = 0; team < 2; team++) {
-        if (own[team] > half) this.tickets[1 - team] = Math.max(0, this.tickets[1 - team] - (own[team] - own[1 - team]) * 0.35 * dt * (m.id === 'domination' ? 2 : 1));
+        if (own[team] > half) this.tickets[1 - team] = Math.max(0, this.tickets[1 - team] - (own[team] - own[1 - team]) * (m.bleed || 0.35) * dt * (m.kind === 'dom' ? 2 : 1));
       }
       if (this.tickets[0] <= 0 || this.tickets[1] <= 0) return this.end(this.tickets[0] > this.tickets[1] ? 0 : 1);
     } else if (m.id === 'breakthrough') {
@@ -925,9 +976,9 @@ export class Match {
         if (this.sector >= this.sectors.length) return this.end(this.attackers);
       }
       if (this.tickets[this.attackers] <= 0) return this.end(1 - this.attackers);
-    } else if (m.id === 'tdm') {
+    } else if (m.kind === 'tdm') {
       if (this.kills[0] >= m.scoreLimit || this.kills[1] >= m.scoreLimit) return this.end(this.kills[0] > this.kills[1] ? 0 : 1);
-    } else if (m.id === 'ffa') {
+    } else if (m.kind === 'ffa') {
       for (const p of this.players.values()) if (p.kills >= m.scoreLimit) return this.end(p.team, p);
     } else if (m.br) {
       this._zoneTick(dt);
@@ -937,8 +988,8 @@ export class Match {
     }
     if (t > m.timeLimit) {
       let winner = -1;
-      if (m.teams === 2) winner = m.id === 'tdm' ? (this.kills[0] >= this.kills[1] ? 0 : 1) : m.id === 'breakthrough' ? 1 - this.attackers : (this.tickets[0] >= this.tickets[1] ? 0 : 1);
-      else if (m.id === 'ffa') { const b = [...this.players.values()].sort((a, b) => b.kills - a.kills)[0]; return this.end(b ? b.team : -1, b); }
+      if (m.teams === 2) winner = m.kind === 'tdm' ? (this.kills[0] >= this.kills[1] ? 0 : 1) : m.id === 'breakthrough' ? 1 - this.attackers : (this.tickets[0] >= this.tickets[1] ? 0 : 1);
+      else if (m.kind === 'ffa') { const b = [...this.players.values()].sort((a, b) => b.kills - a.kills)[0]; return this.end(b ? b.team : -1, b); }
       else if (m.br) { const al = [...this.players.values()].filter((p) => p.alive).sort((a, b) => b.kills - a.kills); winner = al[0] ? al[0].team : -1; }
       return this.end(winner);
     }
@@ -962,6 +1013,15 @@ export class Match {
       if (!p.alive || p.para === 1) continue;
       if (Math.hypot(p.x - z.x, p.z - z.z) > z.r) this.applyDamage(p, z.dps * dt, null, 255, false, z.x, z.z);
     }
+  }
+
+  _moveHill(t) {
+    const m = this.mode, o = this.objectives[0];
+    this.hillIdx = (this.hillIdx + 1) % this.hillSpots.length;
+    this.hillMoveAt = t + m.hillSeconds;
+    const h = this.hillSpots[this.hillIdx];
+    Object.assign(o, { x: h.x, z: h.z, y: this.world.heightAt(h.x, h.z), owner: -1, prog: 0, contested: false });
+    this.events.push(['hill', +h.x.toFixed(1), +h.z.toFixed(1)]);
   }
 
   _captured(o, team) {
