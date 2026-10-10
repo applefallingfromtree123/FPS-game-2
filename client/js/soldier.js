@@ -33,13 +33,13 @@ const BI = Object.fromEntries(BONES.map((b, i) => [b[0], i]));
 const K = { PLAIN: 0, CAMO: 1, GEAR: 2, HELM: 3, SKIN: 4, METAL: 5, CLOTH: 6 };
 
 const TEMPLATES = new Map();
-function getTemplate(look) {
-  const key = [look[1], look[2], look[3], look[6], look[0]].join('-'); // face, head, eyes, pack, skin (stubble tint)
-  if (!TEMPLATES.has(key)) TEMPLATES.set(key, buildTemplate(look));
+function getTemplate(look, lo = false) {
+  const key = [look[1], look[2], look[3], look[6], look[0], lo ? 'lo' : 'hi'].join('-'); // face, head, eyes, pack, skin (stubble tint)
+  if (!TEMPLATES.has(key)) TEMPLATES.set(key, buildTemplate(look, lo));
   return TEMPLATES.get(key);
 }
 
-function buildTemplate(look) {
+function buildTemplate(look, lo = false) {
   const [skinI, faceI, headI, eyesI, , , packI] = look;
   const skinCol = new THREE.Color(LOOK_OPTS.skin.values[skinI]);
   const parts = [];
@@ -49,6 +49,7 @@ function buildTemplate(look) {
     if (sx !== 1 || sy !== 1 || sz !== 1) g.scale(sx, sy, sz);
     g.rotateX(rx); g.rotateY(ry); g.rotateZ(rz);
     g.translate(x, y, z);
+    if (lo) { g.computeBoundingBox(); const sz = g.boundingBox.getSize(new THREE.Vector3()); if (sz.x * sz.y * sz.z < 3.5e-4) return; }   // distant LOD: drop tiny details
     for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal') g.deleteAttribute(k);
     g.computeVertexNormals();
     const n = g.attributes.position.count;
@@ -67,10 +68,10 @@ function buildTemplate(look) {
     g.setAttribute('skinWeight', new THREE.BufferAttribute(sw, 4));
     parts.push(g);
   };
-  const cap = (r, len, seg = 10) => new THREE.CapsuleGeometry(r, len, 4, seg);
+  const cap = (r, len, seg = 10) => (lo ? new THREE.CapsuleGeometry(r, len, 2, 6) : new THREE.CapsuleGeometry(r, len, 4, seg));
   const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
-  const cyl = (rt, rb, h, seg = 12) => new THREE.CylinderGeometry(rt, rb, h, seg);
-  const sph = (r, ws = 14, hs = 10, ps = 0, pl = Math.PI * 2, ts = 0, tl = Math.PI) => new THREE.SphereGeometry(r, ws, hs, ps, pl, ts, tl);
+  const cyl = (rt, rb, h, seg = 12) => new THREE.CylinderGeometry(rt, rb, h, lo ? Math.max(6, seg >> 1) : seg);
+  const sph = (r, ws = 14, hs = 10, ps = 0, pl = Math.PI * 2, ts = 0, tl = Math.PI) => (lo ? new THREE.SphereGeometry(r, Math.max(6, ws >> 1), Math.max(4, hs >> 1), ps, pl, ts, tl) : new THREE.SphereGeometry(r, ws, hs, ps, pl, ts, tl));
   const W = 0xffffff, BOOT = 0x17140f, LACE = 0x6b6558, GLOVE = 0x22201c, DARK = 0x16171a, STRAP = 0x2a2a28, METAL = 0x8a8f94;
 
   // ---- legs ----
@@ -310,6 +311,13 @@ export class Soldier {
     this.deathDir = Math.random() < 0.5 ? 1 : -1;
     this.chute = null;
     this.recoil = 0;
+    this.lod = false;
+  }
+
+  setLod(lo) {
+    if (lo === this.lod) return;
+    this.lod = lo;
+    this.mesh.geometry = getTemplate(this.look, lo);
   }
 
   setWeapon(id) {

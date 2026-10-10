@@ -1007,7 +1007,7 @@ export class Game {
         if (!e.visible || !e.alive || e.veh >= 0 || e.id === this.me.id) continue;
         const friend = this.isFriend(e.team);
         const d = Math.hypot(e.x - cam.position.x, e.z - cam.position.z);
-        if (d > (friend ? 90 : 55) || (this.mode.br && !friend && d > 40)) continue;
+        if (d > (friend ? 60 : 50) || (this.mode.br && !friend && d > 40)) continue;
         cand.push({ e, d, friend });
       }
     }
@@ -1058,7 +1058,8 @@ export class Game {
       if (!show) continue;
       e.soldier.root.position.set(e.x, e.y, e.z);
       e.soldier.root.rotation.y = e.yaw;
-      e.soldier.mesh.castShadow = dist < 70;
+      e.soldier.mesh.castShadow = dist < 45;
+      e.soldier.setLod(dist > 40);
       e.soldier.setWeapon(e.weapon);
       if (dist < 90 || (this.frame + e.id) % (dist < 300 ? 2 : 4) === 0) {
         e.soldier.animate({ dt: dist < 90 ? dt : dt * (dist < 300 ? 2 : 4), speed: e.speed, stance: e.stance, pitch: e.pitch, alive: e.alive, para: e.flags & PF.PARACHUTE ? (e.y - this.world.heightAt(e.x, e.z) > 140 ? 1 : 2) : 0, firing: !!(e.flags & PF.FIRING), ads: !!(e.flags & PF.ADS) });

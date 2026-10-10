@@ -157,12 +157,20 @@ export function buildGun(w, opts = {}) {
     g.add(new THREE.Mesh(new THREE.CircleGeometry(0.02, 16), m.glass).translateY(top + 0.04).translateZ(sz - 0.081));
     sightY = top + 0.04;
   } else if (sight === 'scope') {
-    g.add(box(0.025, 0.02, 0.03, m.metal, 0, top + 0.01, sz + 0.06)); g.add(box(0.025, 0.02, 0.03, m.metal, 0, top + 0.01, sz - 0.08));
-    g.add(cyl(0.019, 0.019, 0.26, m.metal, 0, top + 0.042, sz - 0.01));
-    g.add(cyl(0.031, 0.02, 0.08, m.metal, 0, top + 0.042, sz - 0.16));
-    g.add(cyl(0.02, 0.026, 0.06, m.metal, 0, top + 0.042, sz + 0.13));
-    g.add(new THREE.Mesh(new THREE.CircleGeometry(0.03, 16), m.glass).translateY(top + 0.042).translateZ(sz - 0.2));
-    sightY = top + 0.042;
+    // precision scope: mount rings, main tube, objective bell with coated lens, eyepiece, elevation/windage turrets
+    const tube = m.metal;
+    g.add(box(0.03, 0.014, 0.1, tube, 0, top + 0.007, sz - 0.01));
+    for (const dz of [0.05, -0.07]) { const ring = cyl(0.026, 0.026, 0.02, tube, 0, top + 0.044, sz + dz, 24); g.add(ring); g.add(box(0.012, 0.03, 0.02, tube, 0, top + 0.02, sz + dz)); }
+    g.add(cyl(0.0185, 0.0185, 0.27, tube, 0, top + 0.044, sz - 0.01, 24));
+    g.add(cyl(0.034, 0.021, 0.075, tube, 0, top + 0.044, sz - 0.165, 24));                 // objective bell
+    g.add(cyl(0.036, 0.034, 0.012, m.metal2, 0, top + 0.044, sz - 0.207, 24));             // bell rim
+    const lens = new THREE.Mesh(new THREE.CircleGeometry(0.032, 28), new THREE.MeshPhysicalMaterial({ color: 0x3a1f6a, metalness: 0.2, roughness: 0.04, transparent: true, opacity: 0.55, emissive: 0x0b2a22, emissiveIntensity: 0.6 }));
+    lens.position.set(0, top + 0.044, sz - 0.2); lens.rotation.y = Math.PI; g.add(lens);
+    g.add(cyl(0.0185, 0.024, 0.06, tube, 0, top + 0.044, sz + 0.14, 24));                 // eyepiece
+    const dial = (x, y) => { const d = new THREE.Mesh(new THREE.CylinderGeometry(0.0095, 0.0095, 0.02, 14), m.metal2); d.position.set(x, y, sz - 0.03); if (x) d.rotation.z = Math.PI / 2; g.add(d); };
+    dial(0, top + 0.044 + 0.027); dial(0.027, top + 0.044);                               // elevation + windage turrets
+    g.add(cyl(0.012, 0.012, 0.02, m.metal2, 0, top + 0.044, sz + 0.07, 16));              // parallax / zoom ring
+    sightY = top + 0.044;
   } else {
     // iron sights: ghost-ring rear aperture + front post, both centred on the same sight line
     const lineY = recH / 2 + 0.036;
