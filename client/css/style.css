@@ -147,7 +147,7 @@ h2 { font-family: 'Rajdhani', sans-serif; letter-spacing: 2px; margin: 0 0 14px;
 #endScreen { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: none; width: min(900px, 94vw); pointer-events: auto; text-align: center; }
 #endScreen .win { font-size: 56px; font-weight: 700; letter-spacing: 4px; } #endScreen .win.victory { color: #9fe3ff; } #endScreen .win.defeat { color: var(--enemy); }
 #endScreen table { width: 100%; margin: 14px 0; border-collapse: collapse; font-size: 14px; } #endScreen td, #endScreen th { padding: 3px 8px; }
-#deathCam { pointer-events: none; position: absolute; left: 50%; top: 30%; transform: translateX(-50%); font-size: 22px; text-align: center; text-shadow: 0 2px 6px #000; display: none; }
+#deathCam { z-index: 40; pointer-events: none; position: absolute; left: 50%; top: 30%; transform: translateX(-50%); font-size: 22px; text-align: center; text-shadow: 0 2px 6px #000; display: none; }
 #fps { position: fixed; right: 6px; bottom: 2px; font: 11px monospace; color: rgba(255,255,255,0.5); z-index: 30; }
 
 /* ---------- touch controls ---------- */
