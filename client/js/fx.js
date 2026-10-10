@@ -203,14 +203,15 @@ export class FX {
     const g = new THREE.Group();
     let mesh;
     if (kind === 'frag' || kind === 'c4') {
-      mesh = new THREE.Mesh(kind === 'c4' ? new THREE.BoxGeometry(0.2, 0.06, 0.12) : new THREE.SphereGeometry(0.05, 8, 6), new THREE.MeshStandardMaterial({ color: kind === 'c4' ? 0xb8a77a : 0x3d4430, roughness: 0.6 }));
+      mesh = new THREE.Mesh(kind === 'c4' ? new THREE.BoxGeometry(0.2, 0.06, 0.12) : new THREE.SphereGeometry(0.09, 10, 8).scale(1, 1.25, 1), new THREE.MeshStandardMaterial({ color: kind === 'c4' ? 0xb8a77a : 0x4a5a38, roughness: 0.5, emissive: kind === 'c4' ? 0x331100 : 0x1a2208, emissiveIntensity: 1 }));
+      if (kind === 'frag') { const sp = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.07, 6), new THREE.MeshStandardMaterial({ color: 0x999999, metalness: 0.8, roughness: 0.3 })); sp.position.y = 0.13; mesh.add(sp); }
     } else {
       mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.6, 6).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x555a50, emissive: kind === 'shell' ? 0xffaa55 : 0x000000, emissiveIntensity: 2 }));
     }
     g.add(mesh);
     g.position.copy(pos);
     this.scene.add(g);
-    this.projectiles.set(id, { g, kind, vel: vel.clone(), grav: kind === 'grenade' || kind === 'frag' || kind === 'c4' ? 9.8 : kind === 'shell' ? 1.5 : 0, trail: kind === 'rocket' || kind === 'grenade' });
+    this.projectiles.set(id, { g, kind, vel: vel.clone(), grav: kind === 'grenade' || kind === 'frag' || kind === 'c4' ? 9.8 : kind === 'shell' ? 1.5 : 0, trail: kind === 'rocket' || kind === 'grenade' || kind === 'frag', bounces: 0 });
   }
 
   updateProjectile(id, pos, vel) {
@@ -267,6 +268,14 @@ export class FX {
       if (p.kind === 'c4' && p.vel.lengthSq() === 0) continue;
       p.vel.y -= p.grav * dt;
       p.g.position.addScaledVector(p.vel, dt);
+      if ((p.kind === 'frag' || p.kind === 'c4') && this.world) {
+        const gy = this.world.heightAt(p.g.position.x, p.g.position.z) + 0.1;
+        if (p.g.position.y < gy) {
+          p.g.position.y = gy;
+          if (p.kind === 'c4') p.vel.set(0, 0, 0);
+          else if (p.vel.y < 0) { p.vel.y *= -0.35; p.vel.x *= 0.6; p.vel.z *= 0.6; if (p.vel.y < 0.8) p.vel.y = 0; }
+        }
+      }
       if (p.vel.lengthSq() > 1) p.g.lookAt(p.g.position.clone().add(p.vel));
       if (p.trail) {
         const q = p.g.position;

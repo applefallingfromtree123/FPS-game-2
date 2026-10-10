@@ -36,6 +36,7 @@
     <nav class="menu-nav">
       <button data-tab="play" class="active">플레이</button>
       <button data-tab="loadout">병과 &amp; 무기</button>
+      <button data-tab="char">캐릭터</button>
       <button data-tab="rank">랭킹</button>
       <button data-tab="settings">설정</button>
       <button data-tab="howto">조작법</button>
@@ -63,6 +64,7 @@
       <p class="hint" id="rankNote">K/D 랭킹은 3경기·20킬 이상부터 집계됩니다. 로그인해야 기록이 쌓입니다.</p>
     </section>
     <section id="tab-loadout" class="tab"><div id="loadoutEditor"></div></section>
+    <section id="tab-char" class="tab"><div class="char-wrap"><canvas id="charCanvas" class="char-canvas"></canvas><div id="charOpts" class="char-opts"></div></div></section>
     <section id="tab-settings" class="tab">
       <h2>설정</h2>
       <div class="settings">
@@ -106,12 +108,13 @@
 <!-- ============ LOBBY ============ -->
 <div id="lobby" class="screen">
   <div class="panel lobby-panel">
+    <canvas id="lobbyCanvas" class="lobby-canvas"></canvas>
     <div class="lobby-mode" id="lobbyMode"></div>
     <div class="lobby-map" id="lobbyMap"></div>
     <div class="lobby-count"><span id="lobbyHumans">1</span> / <span id="lobbyMax">100</span> 플레이어</div>
     <div class="lobby-timer" id="lobbyTimer">추가 플레이어를 기다리는 중…</div>
     <div class="lobby-names" id="lobbyNames"></div>
-    <p class="hint">2명 이상 모이면 2분 타이머가 시작됩니다. 타이머 종료 시 빈 자리는 AI 봇으로 채워집니다.</p>
+    <p class="hint">2명 이상 모이면 2분 카운트가 시작됩니다. 타이머 종료 시 빈 자리는 AI 봇으로 채워집니다.</p>
     <div class="row"><button id="btnStartNow" class="primary">봇과 바로 시작</button><button id="btnCancel">취소</button></div>
   </div>
 </div>

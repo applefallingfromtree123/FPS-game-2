@@ -165,6 +165,7 @@ body.touch #hud.active #touch { display: block; }
 .tb.prone { right: 200px; bottom: 150px; width: 54px; height: 54px; font-size: 11px; }
 .tb.reload { right: 40px; bottom: 20px; width: 56px; height: 56px; }
 .tb.gren { right: 120px; bottom: 270px; width: 56px; height: 56px; font-size: 11px; }
+.tb.det { right: 190px; bottom: 270px; width: 62px; height: 62px; font-size: 13px; background: rgba(255,150,40,0.45); border-color: #ffb050; display: none; }
 .tb.use { left: 40px; top: 42%; width: 74px; height: 74px; font-size: 12px; }
 .tb.swap { left: 130px; top: 42%; width: 56px; height: 56px; }
 .tb.mode { left: 130px; top: calc(42% + 66px); width: 50px; height: 50px; font-size: 11px; }
@@ -272,3 +273,17 @@ button.primary:hover { background: #8fdcff; filter: none; }
 @media (max-width: 900px) { .menu-left { width: 240px; padding: 28px 18px; } .menu-right { padding: 28px 20px; } #tab-play .play-row { margin: 18px -20px 0; padding: 12px 20px 16px; } .logo { font-size: 42px; } }
 
 .acc-warn { margin-top: 8px; padding: 6px 8px; font-size: 12px; line-height: 1.4; color: #ffb4a8; background: rgba(190,60,50,0.14); border-left: 2px solid #e0584a; }
+
+/* character customization + lobby preview */
+.char-wrap { display: flex; gap: 22px; align-items: stretch; flex-wrap: wrap; }
+.char-canvas { width: 340px; height: 460px; max-width: 100%; border: 1px solid var(--line, rgba(150,190,230,0.25)); background: radial-gradient(ellipse at 50% 30%, rgba(95,199,255,0.14), rgba(8,12,18,0.85) 70%); touch-action: none; cursor: grab; }
+.char-opts { flex: 1; min-width: 260px; display: flex; flex-direction: column; gap: 14px; }
+.char-row > b { display: block; font: 700 13px Rajdhani, 'Noto Sans KR', sans-serif; letter-spacing: 1px; color: var(--accent); margin-bottom: 6px; }
+.char-row .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.char-row .chip { padding: 7px 12px; border: 1px solid rgba(150,190,230,0.3); background: rgba(10,14,20,0.6); color: #dfe8f2; font: 600 13px 'Noto Sans KR', sans-serif; cursor: pointer; }
+.char-row .chip.sel { border-color: var(--accent); background: rgba(95,199,255,0.25); color: #fff; }
+.char-row .sw { width: 34px; height: 34px; padding: 0; }
+.char-btns { display: flex; gap: 8px; }
+.lobby-panel { width: 560px; max-width: 96vw; }
+.lobby-canvas { width: 100%; height: 300px; display: block; margin: -6px 0 6px; background: radial-gradient(ellipse at 50% 35%, rgba(95,199,255,0.16), rgba(0,0,0,0) 70%); }
+@media (max-height: 560px) { .lobby-canvas { height: 150px; } }

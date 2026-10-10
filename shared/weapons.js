@@ -2,6 +2,7 @@
 // plus per-weapon tuning. Shared by server (damage/validation) and client
 // (models, recoil, HUD).
 import { hashString, mulberry32 } from './rng.js';
+import { sanitizeLook, defaultLook } from './look.js';
 
 export const CATEGORIES = {
   ar:       { label: '돌격소총',  slot: 'primary',   classes: ['assault'] },
@@ -226,7 +227,7 @@ export function damageAt(w, dist, muzzle = 'none') {
 
 export function defaultLoadout(cls = 'assault') {
   const prim = { assault: 'M4A1', engineer: 'MP7A1', support: 'M249', recon: 'M24' }[cls];
-  return { cls, primary: WEAPON_BY_NAME[prim].id, secondary: WEAPON_BY_NAME['M9'].id,
+  return { cls, look: defaultLook(), primary: WEAPON_BY_NAME[prim].id, secondary: WEAPON_BY_NAME['M9'].id,
     gadget: WEAPON_BY_NAME[CLASSES[cls].gadget] ? WEAPON_BY_NAME[CLASSES[cls].gadget].id : -1,
     sight: WEAPON_BY_NAME[prim].sight, muzzle: WEAPON_BY_NAME[prim].muzzleDefault };
 }
@@ -238,6 +239,7 @@ export function sanitizeLoadout(l) {
   const s = WEAPONS[l && l.secondary];
   const g = WEAPONS[l && l.gadget];
   const out = { ...d };
+  out.look = sanitizeLook(l && l.look);
   if (p && p.slot === 'primary' && p.classes.includes(cls)) out.primary = p.id;
   if (s && s.slot === 'secondary') out.secondary = s.id;
   if (g && g.slot === 'gadget' && g.classes.includes(cls)) out.gadget = g.id;

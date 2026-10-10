@@ -9,6 +9,8 @@ import { buildMapImage, escapeHtml } from './hud.js';
 import { initTouch, isTouchDevice, applyTouchMode } from './touch.js';
 import { progress } from '/shared/ranks.js';
 import { playIntro } from './intro.js';
+import { CharPreview } from './preview.js';
+import { LOOK_OPTS, LOOK_KEYS, sanitizeLook, randomLook } from '/shared/look.js';
 
 const $ = (id) => document.getElementById(id);
 const store = {
@@ -24,6 +26,7 @@ const audio = new Audio();
 audio.setVolume(settings.vol);
 let game = null;
 let pendingMatch = null;
+for (const ev of ['touchend', 'pointerdown', 'keydown', 'click']) addEventListener(ev, () => { try { audio.unlock(); } catch {} }, { passive: true });
 
 function show(id) { for (const s of document.querySelectorAll('.screen')) s.classList.toggle('active', s.id === id); }
 
@@ -36,6 +39,7 @@ function buildMenu() {
       for (const x of document.querySelectorAll('.menu-nav button')) x.classList.toggle('active', x === b);
       for (const t of document.querySelectorAll('.tab')) t.classList.toggle('active', t.id === 'tab-' + b.dataset.tab);
       if (b.dataset.tab === 'loadout') renderLoadout($('loadoutEditor'));
+      if (b.dataset.tab === 'char') openChar(); else closeChar();
       if (b.dataset.tab === 'rank') loadRank('xp');
     });
   }
@@ -53,7 +57,7 @@ function buildMenu() {
   $('btnFind').onclick = () => queue(false);
   $('btnPractice').onclick = () => queue(true);
   $('btnStartNow').onclick = () => net.send({ t: 'startNow' });
-  $('btnCancel').onclick = () => { net.send({ t: 'leave' }); show('menu'); };
+  $('btnCancel').onclick = () => { net.send({ t: 'leave' }); stopLobbyPreview(); show('menu'); };
   // settings
   $('setQuality').value = settings.quality; $('setTouch').value = settings.touch;
   $('setSens').value = settings.sens; $('setFov').value = settings.fov; $('setVol').value = settings.vol; $('setInvert').checked = settings.invert;
@@ -89,6 +93,7 @@ function queue(practice) {
     $('lobbyMode').textContent = mode.en + ' · ' + mode.name;
     $('lobbyMap').textContent = '';
     $('lobbyTimer').textContent = '매칭 중…';
+    startLobbyPreview();
   } else showLoading('연습전 준비 중', mode.name);
   try { audio.init(); } catch (e) { console.warn('audio init failed', e); }
   const name = $('name').value;
@@ -107,6 +112,43 @@ function queue(practice) {
   }, 8000);
 }
 let lobbySeen = false;
+
+// ---------------------------------------------------------------- character customization
+let charPrev = null, lobbyPrev = null;
+function previewWeapon() { return loadout.primary; }
+function openChar() {
+  try {
+    if (!charPrev) charPrev = new CharPreview($('charCanvas'));
+    charPrev.start(); drawChar();
+  } catch (e) { console.warn('char preview failed', e); }
+}
+function startLobbyPreview() {
+  try {
+    if (!lobbyPrev) lobbyPrev = new CharPreview($('lobbyCanvas'), { spin: false });
+    lobbyPrev.auto = false; lobbyPrev.yaw = Math.PI - 0.5;
+    lobbyPrev.set(loadout.look, previewWeapon()); lobbyPrev.start();
+  } catch (e) { console.warn('lobby preview failed', e); }
+}
+function stopLobbyPreview() { if (lobbyPrev) lobbyPrev.stop(); }
+function closeChar() { if (charPrev) charPrev.stop(); }
+function drawChar() {
+  const el = $('charOpts'); loadout.look = sanitizeLook(loadout.look);
+  const row = (k, i) => {
+    const o = LOOK_OPTS[k];
+    const chips = Array.from({ length: o.count }, (_, v) => {
+      const sel = loadout.look[i] === v ? ' sel' : '';
+      if (k === 'skin' || (k === 'gear')) return `<div class="chip sw${sel}" data-k="${i}" data-v="${v}" title="${o.names ? o.names[v] : ''}" style="background:${o.values[v]}"></div>`;
+      return `<div class="chip${sel}" data-k="${i}" data-v="${v}">${o.names[v]}</div>`;
+    }).join('');
+    return `<div class="char-row"><b>${o.label}</b><div class="chips">${chips}</div></div>`;
+  };
+  el.innerHTML = LOOK_KEYS.map(row).join('') + '<div class="char-btns"><button id="charRand">무작위</button><button id="charReset">기본값</button></div><p class="hint">변경 사항은 자동 저장되며 다음 배치부터 전장에 적용됩니다. 캐릭터는 드래그해서 돌려볼 수 있어요.</p>';
+  for (const c of el.querySelectorAll('.chip')) c.onclick = () => { loadout.look[+c.dataset.k] = +c.dataset.v; saveLook(); };
+  $('charRand').onclick = () => { loadout.look = randomLook(Math.random); saveLook(); };
+  $('charReset').onclick = () => { loadout.look = sanitizeLook(null); saveLook(); };
+  if (charPrev) charPrev.set(loadout.look, previewWeapon());
+}
+function saveLook() { loadout = sanitizeLoadout(loadout); store.set('loadout', loadout); drawChar(); }
 
 // ---------------------------------------------------------------- loadout editor
 function statBar(label, v, max, txt) { return `<div class="stat"><span>${label}</span><div class="b"><i style="width:${Math.max(3, Math.min(100, (v / max) * 100))}%"></i></div><em>${txt ?? Math.round(v)}</em></div>`; }
@@ -223,7 +265,7 @@ async function loadRank(by = 'xp') {
 }
 
 // ---------------------------------------------------------------- lobby & match
-const CLIENT_BUILD = 'acct-4';
+const CLIENT_BUILD = 'char-1';
 net.on('welcome', (m) => {
   lobbySeen = false;
   account.durable = m.durable !== false; renderAccount();
@@ -233,6 +275,7 @@ net.on('lobby', (m) => {
   lobbySeen = true;
   if (game) return;
   show('lobby');
+  startLobbyPreview();
   $('lobbyMode').textContent = MODES[m.mode].en + ' · ' + MODES[m.mode].name;
   $('lobbyMap').textContent = MAPS[m.map].name;
   $('lobbyHumans').textContent = m.humans; $('lobbyMax').textContent = m.max;
@@ -241,7 +284,8 @@ net.on('lobby', (m) => {
     $('lobbyTimer').textContent = `${Math.floor(m.countdown / 60)}:${String(m.countdown % 60).padStart(2, '0')}`;
     $('btnStartNow').style.display = 'none';
   } else {
-    $('lobbyTimer').textContent = '추가 플레이어 대기 중…';
+    $('lobbyTimer').textContent = '2:00';
+    $('lobbyNames').textContent = (m.names.join(' · ') || '') + '  — 2명이 모이면 2분 카운트가 시작됩니다';
     $('btnStartNow').style.display = m.humans === 1 ? '' : 'none';
   }
 });
@@ -271,6 +315,7 @@ function showLoading(title, sub = '') {
 }
 
 net.on('match', async (m) => {
+  stopLobbyPreview();
   if (game) { game.stop(); game = null; }
   pendingMatch = m;
   const map = MAPS[m.map];

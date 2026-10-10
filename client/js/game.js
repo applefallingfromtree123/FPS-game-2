@@ -14,6 +14,7 @@ import { WEAPONS, zoomFor, MUZZLES, GRENADE } from '/shared/weapons.js';
 import { decodeSnapshot, PF, VF, VEHICLES, EYE, hitboxes } from '/shared/protocol.js';
 import { Environment, QUALITY } from './env.js';
 import { Soldier, PALETTES } from './soldier.js';
+import { sanitizeLook } from '/shared/look.js';
 import { buildGun, buildArms } from './guns.js';
 import { buildVehicle, VehicleController } from './vehicles.js';
 import { FX } from './fx.js';
@@ -71,7 +72,7 @@ export class Game {
     this.map = MAPS[match.map];
     this.world = new World(this.map);
     this.roster = new Map();
-    for (const [id, name, team, squad, bot, cls] of match.roster) this.roster.set(id, { id, name, team, squad, bot: !!bot, cls });
+    for (const [id, name, team, squad, bot, cls, look] of match.roster) this.roster.set(id, { id, name, team, squad, bot: !!bot, cls, look });
     this.me = { id: match.you, team: match.team, squad: match.squad, alive: false, hp: 100, loadout: null };
     this.soldiers = new Map();
     this.vehiclesR = new Map();
@@ -118,6 +119,7 @@ export class Game {
     await tick();
     progress(0.85, '병력 및 장비');
     this.fx = new FX(this.scene, this.camera);
+    this.fx.world = this.world;
     this.fx.groundAt = (x, z) => this.world.heightAt(x, z);
     // first-person viewmodel scene
     this.vmScene = new THREE.Scene();
@@ -987,7 +989,8 @@ export class Game {
       const show = e.visible && dist < 1100;
       if (show && !e.soldier) {
         if (created++ >= 5) continue;
-        e.soldier = new Soldier(this.paletteFor(e.team));
+        const rr = this.roster.get(e.id);
+        e.soldier = new Soldier(this.paletteFor(e.team), sanitizeLook(rr && rr.look));
         this.scene.add(e.soldier.root);
       }
       if (!e.soldier) continue;
@@ -1041,7 +1044,8 @@ export class Game {
   onEvent(e) {
     const fx = this.fx;
     switch (e[0]) {
-      case 'j': this.roster.set(e[1], { id: e[1], name: e[2], team: e[3], squad: e[4], bot: !!e[5], cls: e[6] }); break;
+      case 'j': this.roster.set(e[1], { id: e[1], name: e[2], team: e[3], squad: e[4], bot: !!e[5], cls: e[6], look: e[7] }); break;
+      case 'lk': { const r = this.roster.get(e[1]); if (r) r.look = e[2]; const s = this.soldiers.get(e[1]); if (s && s.soldier) { this.scene.remove(s.soldier.root); s.soldier = null; } break; }
       case 'l': { this.roster.delete(e[1]); const s = this.soldiers.get(e[1]); if (s) { if (s.soldier) this.scene.remove(s.soldier.root); this.soldiers.delete(e[1]); } break; }
       case 's': {
         const [, id, ex, ey, ez, hit, wid, sup] = e;

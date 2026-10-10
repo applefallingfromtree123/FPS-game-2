@@ -6,6 +6,7 @@ import { WEAPONS, WEAPON_BY_NAME, weaponsFor, CLASSES, GRENADE } from '../shared
 import { VEHICLES, EYE } from '../shared/protocol.js';
 import { rayAABB } from '../shared/world.js';
 import { clamp } from '../shared/rng.js';
+import { randomLook } from '../shared/look.js';
 
 export const BOT_NAMES = ['Viper', 'Ghost', 'Reaper', 'Hawk', 'Wolf', 'Raven', 'Falcon', 'Cobra', 'Titan', 'Blaze', 'Shadow', 'Hunter', 'Storm', 'Razor', 'Frost',
   'Kodiak', 'Maverick', 'Ranger', 'Spectre', 'Nomad', 'Bishop', 'Sarge', 'Duke', 'Ace', 'Echo', 'Bravo', 'Delta', 'Tango', 'Sierra', 'Oscar', 'Kilo', 'Mike',
@@ -28,7 +29,7 @@ export function makeBotLoadout(rng, mode) {
   if (cls === 'engineer') gadget = WEAPON_BY_NAME[rng.pick(['RPG-7', 'RPG-7', 'SMAW', 'Carl Gustaf', 'Stinger', 'Javelin'])].id;
   if (cls === 'assault') gadget = WEAPON_BY_NAME['M32 MGL'].id;
   void mode;
-  return { cls, primary: primary.id, secondary: secondary.id, gadget, sight: primary.sight, muzzle: rng.chance(0.2) ? 'suppressor' : primary.muzzleDefault };
+  return { cls, look: randomLook(() => rng.next()), primary: primary.id, secondary: secondary.id, gadget, sight: primary.sight, muzzle: rng.chance(0.2) ? 'suppressor' : primary.muzzleDefault };
 }
 
 const angDiff = (a, b) => { let d = (a - b) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return d; };

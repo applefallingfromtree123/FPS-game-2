@@ -173,7 +173,7 @@ export class Match {
     p.weaponId = this.currentWeapon(p);
     this.players.set(id, p);
     if (isBot) p.bot = new BotBrain(this, p);
-    this.events.push(['j', id, name, p.team, p.squad, isBot ? 1 : 0, p.loadout.cls]);
+    this.events.push(['j', id, name, p.team, p.squad, isBot ? 1 : 0, p.loadout.cls, p.loadout.look]);
     return p;
   }
 
@@ -323,7 +323,9 @@ export class Match {
     if (p.alive || p.eliminated) return false;
     if (loadout && !p.isBot) {
       const keepBr = p.brWeapon;
+      const oldLook = JSON.stringify(p.loadout.look);
       p.loadout = sanitizeLoadout(loadout);
+      if (JSON.stringify(p.loadout.look) !== oldLook) this.events.push(['lk', p.id, p.loadout.look]);
       this.applyModeLoadout(p);
       if (this.mode.br) { p.loadout.primary = -1; p.loadout.gadget = -1; p.brWeapon = keepBr; }
     }
@@ -651,6 +653,7 @@ export class Match {
         }
       }
       if (pr.kind === 'frag' && pr.age >= pr.fuse) { this.explode(pr); continue; }
+      if (pr.kind === 'frag' && pr.y < w.waterLevel - 2) { this.explode(pr); continue; }
       if (pr.age > pr.life || Math.abs(pr.x) > w.half + 200 || Math.abs(pr.z) > w.half + 200 || pr.y < w.waterLevel - 2) {
         if (pr.kind === 'c4') continue;
         this.projectiles.delete(pr.id);
@@ -1075,7 +1078,7 @@ export class Match {
 
   // ---------------------------------------------------------------- networking
   rosterMsg() {
-    return [...this.players.values()].map((p) => [p.id, p.name, p.team, p.squad, p.isBot ? 1 : 0, p.loadout.cls]);
+    return [...this.players.values()].map((p) => [p.id, p.name, p.team, p.squad, p.isBot ? 1 : 0, p.loadout.cls, p.loadout.look]);
   }
 
   stateMsg() {

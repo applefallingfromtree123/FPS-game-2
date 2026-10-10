@@ -19,6 +19,7 @@ export class Audio {
     for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
     this.startAmbience();
   }
+  unlock() { this.init(); if (this.ctx && this.ctx.state !== 'running') this.ctx.resume().catch(() => {}); }
   setVolume(v) { this.volume = v; if (this.master) this.master.gain.value = v; }
 
   _pan(x, z) {
