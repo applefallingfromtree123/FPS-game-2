@@ -70,6 +70,7 @@ export class Environment {
     sun.castShadow = true;
     sun.shadow.mapSize.set(this.q.shadow, this.q.shadow);
     const S = 90;
+    this.shadowExtent = S;
     Object.assign(sun.shadow.camera, { left: -S, right: S, top: S, bottom: -S, near: 1, far: 1200 });
     sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.6;
     this.sun = sun;
@@ -402,9 +403,11 @@ export class Environment {
   }
 
   updateTrees(cam) {
+    const high = cam.y - this.world.heightAt(cam.x, cam.z) > 70; // skydiving / flying: detailed trees and grass are pointless
+    if (high !== this._wasHigh) { this._wasHigh = high; this.lastTreeUpdate.set(1e9, 0, 1e9); if (this.grass) this.grass.visible = !high; }
     if (cam.distanceTo(this.lastTreeUpdate) < 15) return;
     this.lastTreeUpdate.copy(cam);
-    const near2 = this.q.treeNear ** 2, far2 = this.q.treeFar ** 2;
+    const near2 = high ? 0 : this.q.treeNear ** 2, far2 = this.q.treeFar ** 2;
     for (const s of this.treeSets) {
       let h = 0, l = 0;
       for (let i = 0; i < s.list.length; i++) {
@@ -610,12 +613,17 @@ export class Environment {
     const t = this.uniforms.uTime.value;
     if (this.grassU) this.grassU.uCam.value.copy(camPos);
     this.updateTrees(camPos);
-    // shadow camera follows the viewer, snapped to texels to avoid shimmering
-    const S = this.q.shadow;
-    const texel = 180 / S;
-    const cx = Math.round(camPos.x / texel) * texel, cz = Math.round(camPos.z / texel) * texel;
-    this.sun.target.position.set(cx, camPos.y, cz);
-    this.sun.position.set(cx, camPos.y, cz).addScaledVector(this.sunDir, 400);
+    // shadow camera follows the viewer, snapped to shadow-map texels *in light space* (no shimmering while moving)
+    {
+      const texel = (this.shadowExtent * 2) / this.q.shadow;
+      const sd = this.sunDir;
+      const right = this._r || (this._r = new THREE.Vector3()), upv = this._u || (this._u = new THREE.Vector3());
+      right.set(0, 1, 0).cross(sd).normalize(); upv.copy(sd).cross(right).normalize();
+      const px = Math.round(camPos.dot(right) / texel) * texel, py = Math.round(camPos.dot(upv) / texel) * texel, pz = camPos.dot(sd);
+      this.sun.target.position.set(0, 0, 0).addScaledVector(right, px).addScaledVector(upv, py).addScaledVector(sd, pz);
+      this.sun.position.copy(this.sun.target.position).addScaledVector(sd, 400);
+      this.sun.target.updateMatrixWorld();
+    }
     if (this.waterNormal) { this.waterNormal.offset.x = t * 0.01; this.waterNormal.offset.y = t * 0.006; }
     if (this.clouds) { this.clouds.position.x = camPos.x; this.clouds.position.z = camPos.z; }
     for (const f of this.flagMeshes.values()) {

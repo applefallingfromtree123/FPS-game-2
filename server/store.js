@@ -21,19 +21,54 @@ export class Store {
     this.data = { users: {}, sessions: {} };
     this.dirty = false; this.saving = false; this.timer = null; this.lbCache = new Map();
     this.backend = this.url ? 'upstash' : 'file';
+    this.ready = false;       // true once the stored data has been read successfully; never write before that
+    this.lastBackup = 0;
   }
 
+  // Durable storage = anything that survives a restart/redeploy of the game server.
+  get durable() { return this.backend === 'upstash' || process.env.PERSISTENT_DISK === '1' || !(process.env.RENDER || process.env.KOYEB_APP_NAME || process.env.NF_HOSTNAME || process.env.FLY_APP_NAME); }
+
   async load() {
-    try {
-      if (this.url) {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        if (this.url) {
+          const r = await this._redis(['GET', KEY]);
+          if (r && r.result) this.data = JSON.parse(r.result);
+        } else if (fs.existsSync(this.file)) this.data = JSON.parse(fs.readFileSync(this.file, 'utf8'));
+        break;
+      } catch (e) {
+        // Never continue with an empty database when the real one could not be read:
+        // the next save would overwrite every account.
+        console.error(`[store] load failed (attempt ${attempt}): ${e.message}`);
+        if (!this.url || attempt >= 5) {
+          if (!this.url && fs.existsSync(this.file)) { fs.copyFileSync(this.file, this.file + '.corrupt-' + Date.now()); console.error('[store] unreadable file kept as .corrupt backup'); break; }
+          if (this.url) { this._retryLoad(); this.ready = false; return; }
+          break;
+        }
+        await new Promise((r) => setTimeout(r, 1500 * attempt));
+      }
+    }
+    this._afterLoad();
+  }
+
+  _retryLoad() {
+    console.error('[store] remote database unreachable — accounts are read-only until it answers again');
+    const t = setInterval(async () => {
+      try {
         const r = await this._redis(['GET', KEY]);
         if (r && r.result) this.data = JSON.parse(r.result);
-      } else if (fs.existsSync(this.file)) this.data = JSON.parse(fs.readFileSync(this.file, 'utf8'));
-    } catch (e) { console.error('[store] load failed, starting empty:', e.message); }
+        clearInterval(t); this._afterLoad(); console.log('[store] remote database reachable again');
+      } catch {}
+    }, 10000);
+    t.unref();
+  }
+
+  _afterLoad() {
     this.data.users = this.data.users || {}; this.data.sessions = this.data.sessions || {};
     this._gcSessions();
-    if (this.backend === 'file' && (process.env.RENDER || process.env.KOYEB_APP_NAME || process.env.NF_HOSTNAME)) console.warn('[store] WARNING: file storage on a host with an ephemeral disk — accounts are lost on redeploy. Set UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN (free) or mount a persistent disk and set DATA_DIR.');
-    console.log(`[store] ${this.backend} backend, ${Object.keys(this.data.users).length} accounts`);
+    this.ready = true;
+    if (!this.durable) console.warn('[store] WARNING: file storage on a host with an ephemeral disk — accounts are lost on redeploy/restart. Set UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN (free).');
+    console.log(`[store] ${this.backend} backend (${this.durable ? 'durable' : 'NOT durable'}), ${Object.keys(this.data.users).length} accounts`);
   }
 
   async _redis(cmd) {
@@ -49,11 +84,15 @@ export class Store {
   }
 
   async flush() {
-    if (!this.dirty || this.saving) return;
+    if (!this.dirty || this.saving || !this.ready) return;
     this.saving = true; this.dirty = false;
     try {
       const json = JSON.stringify(this.data);
-      if (this.url) await this._redis(['SET', KEY, json]);
+      if (this.url) {
+        await this._redis(['SET', KEY, json]);
+        // rolling snapshot every 6 hours in case of a bad write
+        if (Date.now() - this.lastBackup > 6 * 3600e3) { this.lastBackup = Date.now(); await this._redis(['SET', KEY + ':backup', json]); }
+      }
       else { fs.mkdirSync(this.dir, { recursive: true }); const tmp = this.file + '.tmp'; fs.writeFileSync(tmp, json); fs.renameSync(tmp, this.file); }
     } catch (e) { console.error('[store] save failed:', e.message); this.dirty = true; }
     this.saving = false;
@@ -68,6 +107,7 @@ export class Store {
   static validPass(p) { return typeof p === 'string' && p.length >= 6 && p.length <= 64; }
 
   async register(name, pass) {
+    if (!this.ready) return { error: '계정 저장소에 연결 중입니다. 잠시 후 다시 시도하세요.' };
     if (!Store.validName(name)) return { error: '이름은 3~16자의 한글/영문/숫자/_ 만 가능합니다.' };
     if (!Store.validPass(pass)) return { error: '비밀번호는 6자 이상이어야 합니다.' };
     const key = name.toLowerCase();
@@ -82,6 +122,7 @@ export class Store {
   }
 
   async login(name, pass) {
+    if (!this.ready) return { error: '계정 저장소에 연결 중입니다. 잠시 후 다시 시도하세요.' };
     const key = String(name || '').toLowerCase();
     const u = this.data.users[key];
     // always do the hash work so timing does not reveal whether the account exists
@@ -120,6 +161,7 @@ export class Store {
 
   // Add one finished match to an account. Returns { gained, profile, leveledUp }.
   record(key, r) {
+    if (!this.ready) return null;
     const u = this.data.users[key];
     if (!u) return null;
     const before = progress(u.xp).level;

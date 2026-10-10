@@ -163,7 +163,7 @@ function renderLoadout(el, compact = false) {
 
 
 // ---------------------------------------------------------------- account & ranking
-const account = { token: store.get('token', null), profile: null };
+const account = { token: store.get('token', null), profile: null, durable: true, lostName: store.get('lastName', null) };
 let authMode = 'login';
 const api = async (path, opts = {}) => {
   const r = await fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', ...(account.token ? { Authorization: 'Bearer ' + account.token } : {}), ...(opts.headers || {}) } });
@@ -176,7 +176,7 @@ function renderAccount() {
   const p = account.profile;
   $('guestName').style.display = p ? 'none' : '';
   if (!p) {
-    el.innerHTML = `<div class="acc-card"><div class="acc-name">게스트</div><div class="acc-rank">로그인하면 기록과 랭킹이 저장됩니다</div><div class="acc-btns"><button id="accLogin" class="primary">로그인 / 가입</button></div></div>`;
+    el.innerHTML = `<div class="acc-card"><div class="acc-name">게스트</div><div class="acc-rank">로그인하면 기록과 랭킹이 저장됩니다</div>${account.lostName ? `<div class="acc-warn">서버가 초기화되어 "${escapeHtml(account.lostName)}" 계정이 사라졌습니다. 같은 이름으로 다시 가입해 주세요.</div>` : ''}${account.durable ? '' : '<div class="acc-warn">이 서버는 계정을 영구 저장하지 못합니다(재시작 시 초기화).</div>'}<div class="acc-btns"><button id="accLogin" class="primary">로그인 / 가입</button></div></div>`;
     $('accLogin').onclick = () => openAuth('login');
     return;
   }
@@ -184,7 +184,7 @@ function renderAccount() {
   el.innerHTML = `<div class="acc-card"><div class="acc-name">${escapeHtml(p.name)}</div><div class="acc-rank">Lv.${pr.level} · ${pr.ko} <span style="opacity:.6">${pr.en}</span></div>
     <div class="acc-bar"><i style="width:${Math.min(100, (pr.into / pr.need) * 100)}%"></i></div>
     <div class="acc-sub"><span>${p.xp.toLocaleString()} XP</span><span>K/D ${p.kd} · ${p.wins}승</span></div>
-    <div class="acc-btns"><button id="accRank">내 랭킹</button><button id="accOut">로그아웃</button></div></div>`;
+    ${account.durable ? '' : '<div class="acc-warn">임시 저장소: 서버가 재시작되면 계정이 초기화됩니다.</div>'}<div class="acc-btns"><button id="accRank">내 랭킹</button><button id="accOut">로그아웃</button></div></div>`;
   $('accRank').onclick = () => { for (const b of document.querySelectorAll('.menu-nav button')) if (b.dataset.tab === 'rank') b.click(); };
   $('accOut').onclick = async () => { try { await api('/api/logout', { method: 'POST' }); } catch {} account.token = null; account.profile = null; store.set('token', null); net.send({ t: 'auth', token: null }); renderAccount(); };
 }
@@ -200,7 +200,7 @@ async function submitAuth() {
   $('authSubmit').disabled = true;
   try {
     const j = await api(authMode === 'login' ? '/api/login' : '/api/register', { method: 'POST', body: JSON.stringify({ name: $('authName').value.trim(), password: $('authPass').value }) });
-    account.token = j.token; account.profile = j.profile; store.set('token', j.token);
+    account.token = j.token; account.profile = j.profile; account.lostName = null; store.set('token', j.token); store.set('lastName', j.profile.name);
     net.send({ t: 'auth', token: j.token });
     $('authModal').classList.remove('open'); $('authPass').value = '';
     renderAccount();
@@ -223,9 +223,10 @@ async function loadRank(by = 'xp') {
 }
 
 // ---------------------------------------------------------------- lobby & match
-const CLIENT_BUILD = 'acct-3';
+const CLIENT_BUILD = 'acct-4';
 net.on('welcome', (m) => {
   lobbySeen = false;
+  account.durable = m.durable !== false; renderAccount();
   if (account.token) net.send({ t: 'auth', token: account.token }); $('online').textContent = `● 서버 온라인 · 접속자 ${m.online}명 · 서버 ${m.build} · 화면 ${CLIENT_BUILD}${document.body.classList.contains('touch') ? ' · 터치 조작 켜짐' : ''}`; net.send({ t: 'hello', name: $('name').value }); });
 net.on('close', () => { $('online').textContent = '서버 연결 끊김 — 재연결 중…'; });
 net.on('lobby', (m) => {
@@ -246,7 +247,7 @@ net.on('lobby', (m) => {
 });
 
 net.on('auth', (m) => {
-  if (m.ok) { account.profile = m.profile; } else if (account.token) { account.token = null; account.profile = null; store.set('token', null); }
+  if (m.ok) { account.profile = m.profile; account.lostName = null; store.set('lastName', m.profile.name); } else if (account.token) { account.token = null; account.profile = null; store.set('token', null); account.lostName = store.get('lastName', null); }
   renderAccount();
 });
 net.on('profile', (m) => {

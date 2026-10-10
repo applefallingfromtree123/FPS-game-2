@@ -127,7 +127,7 @@ export class HUD {
     const tl = s.tl;
     html += `<div class="timeleft">${Math.floor(tl / 60)}:${String(tl % 60).padStart(2, '0')}</div>`;
     if (s.zone) html += `<div class="timeleft" style="color:#ff9a5a">화염지대 ${s.zone[6] > 0 ? '수축까지 ' + s.zone[6] + '초' : '수축 중'}</div>`;
-    $('objBar').innerHTML = html;
+    if (html !== this._objHtml) { this._objHtml = html; $('objBar').innerHTML = html; } // only touch the DOM when something changed (avoids flicker)
   }
 
   update(dt) {

@@ -118,11 +118,11 @@ export class FX {
     this.casingIdx = 0;
     this.groundAt = () => -1e9;
     // floating dust / pollen motes around the viewer, lit by the sun
-    const N = 260;
+    const N = 120;
     const dp = new Float32Array(N * 3);
     for (let i = 0; i < N; i++) dp.set([(Math.random() - 0.5) * 36, (Math.random() - 0.1) * 10, (Math.random() - 0.5) * 36], i * 3);
     const dustGeo = new THREE.BufferGeometry(); dustGeo.setAttribute("position", new THREE.BufferAttribute(dp, 3));
-    this.dust = new THREE.Points(dustGeo, new THREE.PointsMaterial({ size: 0.045, color: 0xfff0d8, transparent: true, opacity: 0.4, depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true, fog: true }));
+    this.dust = new THREE.Points(dustGeo, new THREE.PointsMaterial({ size: 0.07, color: 0xfff0d8, transparent: true, opacity: 0.16, depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true, fog: true }));
     this.dust.frustumCulled = false; scene.add(this.dust);
     this.projectiles = new Map();
     this.wrecks = [];

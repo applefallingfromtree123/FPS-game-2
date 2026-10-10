@@ -62,10 +62,10 @@ app.get('/api/leaderboard', (req, res) => {
   const by = ['xp', 'kills', 'wins', 'kd', 'headshots'].includes(req.query.by) ? req.query.by : 'xp';
   const rows = store.leaderboard(by, Math.min(100, +req.query.limit || 50));
   const key = store.userFromToken(bearer(req));
-  res.json({ by, rows, me: key ? { rank: store.rankOf(key, by), profile: store.profile(key) } : null, backend: store.backend });
+  res.json({ by, rows, me: key ? { rank: store.rankOf(key, by), profile: store.profile(key) } : null, backend: store.backend, durable: store.durable });
 });
 app.get('/health', (_req, res) => res.json({ ok: true }));
-app.get('/api/status', (_req, res) => res.json({ build: BUILD, online, ...mm.stats() }));
+app.get('/api/status', (_req, res) => res.json({ build: BUILD, online, storage: { backend: store.backend, durable: store.durable, ready: store.ready }, ...mm.stats() }));
 
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 64 * 1024 });
@@ -83,7 +83,7 @@ class Client {
 wss.on('connection', (ws) => {
   const c = new Client(ws);
   online++;
-  c.send({ t: 'welcome', online, build: BUILD });
+  c.send({ t: 'welcome', online, build: BUILD, durable: store.durable, ready: store.ready });
   ws.on('message', (data, isBinary) => {
     if (isBinary) return;
     // simple flood protection

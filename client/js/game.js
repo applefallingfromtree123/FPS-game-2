@@ -7,7 +7,6 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
-import { Lensflare, LensflareElement } from 'three/addons/objects/Lensflare.js';
 import { World, rayCapsule, raySphere } from '/shared/world.js';
 import { MAPS } from '/shared/maps.js';
 import { MODES } from '/shared/modes.js';
@@ -27,7 +26,7 @@ const V3 = THREE.Vector3;
 const lerpAngle = (a, b, t) => { let d = b - a; d = Math.atan2(Math.sin(d), Math.cos(d)); return a + d * t; };
 
 const GradeShader = {
-  uniforms: { tDiffuse: { value: null }, uVig: { value: 0.35 }, uDamage: { value: 0 }, uSat: { value: 1.04 }, uTime: { value: 0 }, uGrain: { value: 0.025 }, uCA: { value: 0.0005 }, uCool: { value: 0.0 } },
+  uniforms: { tDiffuse: { value: null }, uVig: { value: 0.35 }, uDamage: { value: 0 }, uSat: { value: 1.04 }, uTime: { value: 0 }, uGrain: { value: 0.012 }, uCA: { value: 0.0005 }, uCool: { value: 0.0 } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
   fragmentShader: `uniform sampler2D tDiffuse; uniform float uVig, uDamage, uSat, uTime, uGrain, uCA, uCool; varying vec2 vUv;
     float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233)) + uTime) * 43758.5453); }
@@ -120,19 +119,6 @@ export class Game {
     progress(0.85, '병력 및 장비');
     this.fx = new FX(this.scene, this.camera);
     this.fx.groundAt = (x, z) => this.world.heightAt(x, z);
-    if (q.name !== 'low' && this.world.time.sunElev > 3) {
-      // sun lens flare (occluded by terrain/buildings automatically)
-      const sunLight = new THREE.PointLight(0xffffff, 0, 0);
-      const flare = new Lensflare();
-      const tc = this.env.sun.color.clone();
-      flare.addElement(new LensflareElement(TX.radialSprite('rgba(255,255,255,0.55)', 'rgba(255,255,255,0)', 128), 240, 0, tc));
-      flare.addElement(new LensflareElement(TX.radialSprite('rgba(255,220,170,0.28)', 'rgba(255,200,150,0)', 64), 120, 0.35, new THREE.Color(1, 0.8, 0.6)));
-      flare.addElement(new LensflareElement(TX.radialSprite('rgba(150,200,255,0.25)', 'rgba(150,200,255,0)', 64), 80, 0.62, new THREE.Color(0.7, 0.85, 1)));
-      flare.addElement(new LensflareElement(TX.radialSprite('rgba(255,255,255,0.18)', 'rgba(255,255,255,0)', 64), 170, 0.9, new THREE.Color(0.9, 0.95, 1)));
-      sunLight.add(flare);
-      this.scene.add(sunLight);
-      this.sunFlare = sunLight;
-    }
     // first-person viewmodel scene
     this.vmScene = new THREE.Scene();
     this.vmCamera = new THREE.PerspectiveCamera(52, innerWidth / innerHeight, 0.01, 10);
@@ -208,13 +194,32 @@ export class Game {
     return v;
   }
 
+  // Supply crates: one instanced mesh for all of them (hundreds of separate meshes made battle royale slow)
   _addLoot(i, x, y, z) {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.55, 0.6), new THREE.MeshStandardMaterial({ color: 0x4d5a37, roughness: 0.7 }));
-    const lid = new THREE.Mesh(new THREE.BoxGeometry(1.14, 0.06, 0.64), new THREE.MeshStandardMaterial({ color: 0xffb030, emissive: 0x553300, roughness: 0.5 }));
-    lid.position.y = 0.3; m.add(lid);
-    m.position.set(x, y + 0.28, z); m.castShadow = true;
-    this.scene.add(m);
-    this.lootMeshes.set(i, m);
+    if (!this.lootField) {
+      const mk = (geo, mat) => { const m = new THREE.InstancedMesh(geo, mat, 700); m.count = 0; m.frustumCulled = false; m.castShadow = false; this.scene.add(m); return m; };
+      this.lootField = { body: mk(new THREE.BoxGeometry(1.1, 0.55, 0.6), new THREE.MeshStandardMaterial({ color: 0x4d5a37, roughness: 0.7 })), lid: mk(new THREE.BoxGeometry(1.14, 0.06, 0.64), new THREE.MeshStandardMaterial({ color: 0xffb030, emissive: 0x553300, roughness: 0.5 })), slots: new Map(), free: [], next: 0 };
+    }
+    const f = this.lootField;
+    const slot = f.free.length ? f.free.pop() : f.next++;
+    if (slot >= 700) return;
+    const m4 = new THREE.Matrix4().makeTranslation(x, y + 0.28, z), lid = new THREE.Matrix4().makeTranslation(x, y + 0.58, z);
+    f.body.setMatrixAt(slot, m4); f.lid.setMatrixAt(slot, lid);
+    f.body.count = f.lid.count = Math.max(f.body.count, slot + 1);
+    f.body.instanceMatrix.needsUpdate = f.lid.instanceMatrix.needsUpdate = true;
+    f.slots.set(i, slot);
+    this.lootMeshes.set(i, { position: new V3(x, y + 0.28, z) });
+  }
+
+  _removeLoot(i) {
+    const f = this.lootField, slot = f && f.slots.get(i);
+    if (slot !== undefined) {
+      const z = new THREE.Matrix4().makeScale(0, 0, 0);
+      f.body.setMatrixAt(slot, z); f.lid.setMatrixAt(slot, z);
+      f.body.instanceMatrix.needsUpdate = f.lid.instanceMatrix.needsUpdate = true;
+      f.slots.delete(i); f.free.push(slot);
+    }
+    this.lootMeshes.delete(i);
   }
 
   // ------------------------------------------------------------ input
@@ -584,7 +589,7 @@ export class Game {
     if (this.fx.shake > 0) { this.camera.rotation.x += (Math.random() - 0.5) * this.fx.shake * 0.05; this.camera.rotation.y += (Math.random() - 0.5) * this.fx.shake * 0.05; }
     safe('hud', () => { this.hud.update(dt); this.updateHudPanels(now); });
     this.grade.uniforms.uDamage.value = this.me.alive ? Math.max(0, (60 - this.me.hp) / 60) : 0.8;
-    this.grade.uniforms.uTime.value = (now * 0.001) % 100;
+    this.grade.uniforms.uTime.value = Math.floor(now / 55) % 100;
     this.updateSun();
     const L = this.audio.listener; const cp = this.camera.position; L.x = cp.x; L.y = cp.y; L.z = cp.z; L.yaw = this.cam.yaw;
     // network state 20Hz
@@ -609,7 +614,6 @@ export class Game {
 
   updateSun() {
     const cp = this.camera.position, sd = this.env.sunDir;
-    if (this.sunFlare) { this.sunFlare.position.set(cp.x + sd.x * 900, cp.y + sd.y * 900, cp.z + sd.z * 900); this.sunFlare.visible = !(this.adsT > 0.9 && (this.sightKind === 'scope' || this.sightKind === 'acog')); }
     if (this.shafts) {
       const v = new THREE.Vector3(cp.x + sd.x * 1000, cp.y + sd.y * 1000, cp.z + sd.z * 1000).project(this.camera);
       const fwd = new THREE.Vector3(); this.camera.getWorldDirection(fwd);
@@ -966,6 +970,7 @@ export class Game {
   }
 
   updateRemote(dt) {
+    let created = 0; // spawn soldier models a few per frame to avoid a hitch when 100 players appear at once
     const rt = this.renderTime();
     const cam = this.camera.position;
     for (const e of this.soldiers.values()) {
@@ -981,6 +986,7 @@ export class Game {
       e.visible = e.veh < 0;
       const show = e.visible && dist < 1100;
       if (show && !e.soldier) {
+        if (created++ >= 5) continue;
         e.soldier = new Soldier(this.paletteFor(e.team));
         this.scene.add(e.soldier.root);
       }
@@ -1114,7 +1120,7 @@ export class Game {
         break;
       }
       case 'bxr': { const m = this.boxes.get(e[1]); if (m) { this.scene.remove(m); this.boxes.delete(e[1]); } break; }
-      case 'lo': { if (this.lootMeshes) { const m = this.lootMeshes.get(e[1]); if (m) { this.scene.remove(m); this.lootMeshes.delete(e[1]); } } break; }
+      case 'lo': { if (this.lootMeshes) this._removeLoot(e[1]); break; }
       case 'ld': if (this.lootMeshes) this._addLoot(e[1], e[2], e[3], e[4]); break;
     }
   }
