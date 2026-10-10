@@ -292,7 +292,7 @@ export class Game {
   unlock() {
     if (this.hasPointerLock) { if (document.pointerLockElement) document.exitPointerLock(); return; }
     this.engaged = false; this.keys = {}; this.mouse.left = this.mouse.right = false;
-    if (this.me.alive && !this.ended && $('deploy').style.display !== 'flex') $('pause').style.display = 'flex';
+    if ((this.me.alive || !this.mode.respawn) && !this.ended && $('deploy').style.display !== 'flex') $('pause').style.display = 'flex';
   }
 
   onKey(code) {
@@ -1256,7 +1256,8 @@ export class Game {
     const dc = $('deathCam');
     dc.style.display = 'block';
     dc.innerHTML = killerId >= 0 && killerId !== this.me.id && r ? `<div style="color:#ff6a5a">사망</div><div style="font-size:16px">${r.name}${r.bot ? ' (AI)' : ''}에게 처치당했습니다</div>` : '<div style="color:#ff6a5a">사망</div>';
-    if (!this.mode.respawn) dc.innerHTML += '<div style="font-size:15px;margin-top:8px">탈락했습니다 — 분대가 계속 싸우고 있습니다. [Esc] 메뉴</div>';
+    if (!this.mode.respawn) dc.innerHTML += '<div style="font-size:15px;margin-top:8px">탈락했습니다 — 분대가 계속 싸우고 있습니다.</div><button id="btnDeathMenu" style="pointer-events:auto;margin-top:14px;padding:12px 28px;font-size:18px">메뉴로 나가기</button>';
+    const bd = $('btnDeathMenu'); if (bd) bd.onclick = () => this.ui.exitMatch();
     if (document.pointerLockElement && this.mode.respawn) setTimeout(() => { if (!this.me.alive && document.pointerLockElement) document.exitPointerLock(); }, 4400);
   }
 
