@@ -16,8 +16,14 @@ export class Store {
   constructor(opts = {}) {
     this.dir = opts.dir || process.env.DATA_DIR || path.join(process.cwd(), 'data');
     this.file = path.join(this.dir, 'warfield-db.json');
-    this.url = process.env.UPSTASH_REDIS_REST_URL || '';
-    this.token = process.env.UPSTASH_REDIS_REST_TOKEN || '';
+    let url = (process.env.UPSTASH_REDIS_REST_URL || '').trim().replace(/^["']|["']$/g, '');
+    let tok = (process.env.UPSTASH_REDIS_REST_TOKEN || '').trim().replace(/^["']|["']$/g, '');
+    const rm = /^rediss?:\/\/[^:@]*:([^@]+)@([^:/]+)/.exec(url);   // a redis:// connection string was pasted: derive the REST endpoint
+    if (rm) { url = 'https://' + rm[2]; tok = tok || decodeURIComponent(rm[1]); }
+    if (url && !/^https?:\/\//.test(url)) url = 'https://' + url;
+    this.url = url.replace(/\/+$/, '');
+    this.token = tok;
+    this.lastError = '';
     this.data = { users: {}, sessions: {} };
     this.dirty = false; this.saving = false; this.timer = null; this.lbCache = new Map();
     this.backend = this.url ? 'upstash' : 'file';
@@ -26,7 +32,8 @@ export class Store {
   }
 
   // Durable storage = anything that survives a restart/redeploy of the game server.
-  get durable() { return this.backend === 'upstash' || process.env.PERSISTENT_DISK === '1' || !(process.env.RENDER || process.env.KOYEB_APP_NAME || process.env.NF_HOSTNAME || process.env.FLY_APP_NAME); }
+  get durable() { if (this.backend === 'upstash') return true;
+    return process.env.PERSISTENT_DISK === '1' || !(process.env.RENDER || process.env.KOYEB_APP_NAME || process.env.NF_HOSTNAME || process.env.FLY_APP_NAME); }
 
   async load() {
     for (let attempt = 1; ; attempt++) {
@@ -39,7 +46,14 @@ export class Store {
       } catch (e) {
         // Never continue with an empty database when the real one could not be read:
         // the next save would overwrite every account.
-        console.error(`[store] load failed (attempt ${attempt}): ${e.message}`);
+        console.error(`[store] load failed (attempt ${attempt}): ${e.message} ${this.lastError}`);
+        if (this.url && (e.status === 401 || e.status === 403 || e.status === 404)) {
+          // wrong URL/token: the remote data can never be read, so use local storage instead of blocking all accounts
+          console.error('[store] Upstash credentials rejected — falling back to LOCAL file storage (not durable). Fix UPSTASH_REDIS_REST_URL / _TOKEN.');
+          this.misconfigured = this.lastError; this.url = ''; this.backend = 'file';
+          if (fs.existsSync(this.file)) { try { this.data = JSON.parse(fs.readFileSync(this.file, 'utf8')); } catch {} }
+          break;
+        }
         if (!this.url || attempt >= 5) {
           if (!this.url && fs.existsSync(this.file)) { fs.copyFileSync(this.file, this.file + '.corrupt-' + Date.now()); console.error('[store] unreadable file kept as .corrupt backup'); break; }
           if (this.url) { this._retryLoad(); this.ready = false; return; }
@@ -58,7 +72,13 @@ export class Store {
         const r = await this._redis(['GET', KEY]);
         if (r && r.result) this.data = JSON.parse(r.result);
         clearInterval(t); this._afterLoad(); console.log('[store] remote database reachable again');
-      } catch {}
+      } catch (e) {
+        if (e.status === 401 || e.status === 403 || e.status === 404) {
+          clearInterval(t); this.misconfigured = this.lastError; this.url = ''; this.backend = 'file';
+          try { if (fs.existsSync(this.file)) this.data = JSON.parse(fs.readFileSync(this.file, 'utf8')); } catch {}
+          this._afterLoad();
+        }
+      }
     }, 10000);
     t.unref();
   }
@@ -72,8 +92,11 @@ export class Store {
   }
 
   async _redis(cmd) {
-    const res = await fetch(this.url, { method: 'POST', headers: { Authorization: `Bearer ${this.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(cmd) });
-    if (!res.ok) throw new Error('redis ' + res.status);
+    let res;
+    try { res = await fetch(this.url, { method: 'POST', headers: { Authorization: `Bearer ${this.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(cmd), signal: AbortSignal.timeout(8000) }); }
+    catch (e) { this.lastError = 'network: ' + (e.cause && e.cause.code || e.message); throw e; }
+    if (!res.ok) { this.lastError = 'http ' + res.status; const err = new Error('redis ' + res.status); err.status = res.status; throw err; }
+    this.lastError = '';
     return res.json();
   }
 
@@ -107,7 +130,7 @@ export class Store {
   static validPass(p) { return typeof p === 'string' && p.length >= 6 && p.length <= 64; }
 
   async register(name, pass) {
-    if (!this.ready) return { error: '계정 저장소에 연결 중입니다. 잠시 후 다시 시도하세요.' };
+    if (!this.ready) return { error: '계정 저장소에 연결하지 못했습니다' + (this.lastError ? ' (' + this.lastError + ')' : '') + '. 서버 설정(UPSTASH 주소/토큰)을 확인하세요.' };
     if (!Store.validName(name)) return { error: '이름은 3~16자의 한글/영문/숫자/_ 만 가능합니다.' };
     if (!Store.validPass(pass)) return { error: '비밀번호는 6자 이상이어야 합니다.' };
     const key = name.toLowerCase();
@@ -122,7 +145,7 @@ export class Store {
   }
 
   async login(name, pass) {
-    if (!this.ready) return { error: '계정 저장소에 연결 중입니다. 잠시 후 다시 시도하세요.' };
+    if (!this.ready) return { error: '계정 저장소에 연결하지 못했습니다' + (this.lastError ? ' (' + this.lastError + ')' : '') + '. 서버 설정(UPSTASH 주소/토큰)을 확인하세요.' };
     const key = String(name || '').toLowerCase();
     const u = this.data.users[key];
     // always do the hash work so timing does not reveal whether the account exists

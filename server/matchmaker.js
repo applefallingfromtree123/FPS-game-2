@@ -149,7 +149,8 @@ export class Matchmaker {
   }
 
   _joinMatch(m, client, inProgress) {
-    const p = inProgress ? m.replaceBotWithHuman(client.name, client, client.loadoutReq) : m.addPlayer({ name: client.name, client, loadout: client.loadoutReq });
+    const tr = client.teamReq === 0 || client.teamReq === 1 ? client.teamReq : null;
+    const p = inProgress ? m.replaceBotWithHuman(client.name, client, client.loadoutReq, tr) : m.addPlayer({ name: client.name, client, loadout: client.loadoutReq, team: m.mode.teams === 2 ? tr : null });
     client.match = m; client.player = p;
     client.send({ t: 'match', id: m.id, mode: m.mode.id, map: m.map.id, you: p.id, team: p.team, squad: p.squad, roster: m.rosterMsg(),
       vehicles: m.vehicles.map((v) => [v.id, v.type, v.team]), time: m.time, inProgress, br: !!m.mode.br });
@@ -166,7 +167,7 @@ export class Matchmaker {
   }
 
   handle(client, msg) {
-    if (msg.t === 'queue') { client.loadoutReq = msg.l || null; this.queue(client, String(msg.mode), !!msg.practice, Number.isInteger(msg.map) ? msg.map : -1); }
+    if (msg.t === 'queue') { client.loadoutReq = msg.l || null; client.teamReq = msg.team === 0 || msg.team === 1 ? msg.team : -1; this.queue(client, String(msg.mode), !!msg.practice, Number.isInteger(msg.map) ? msg.map : -1); }
     else if (msg.t === 'startNow') this.startNow(client);
     else if (msg.t === 'leave') this.leave(client);
     else if (client.match && client.player) {

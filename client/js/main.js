@@ -53,6 +53,7 @@ function buildMenu() {
   const sel = () => { for (const c of modes.querySelectorAll('.mode-card')) c.classList.toggle('sel', c.dataset.mode === selMode); const m = MODES[selMode]; if (m && $('selModeLabel')) $('selModeLabel').innerHTML = `선택한 모드 <b>${m.en}</b> · ${m.name} (${m.maxPlayers}명)`; };
   for (const c of modes.querySelectorAll('.mode-card')) c.addEventListener('click', () => { selMode = c.dataset.mode; store.set('mode', selMode); sel(); });
   sel();
+  $('teamSel').value = String(store.get('team', '-1')); if ($('teamSel').value === '') $('teamSel').value = '-1';
   $('mapSel').innerHTML = '<option value="-1">무작위 전장</option>' + MAPS.map((m) => `<option value="${m.id}">${m.name} — ${biomeName(m.biome)}, ${m.size}m</option>`).join('');
   $('btnFind').onclick = () => queue(false);
   $('btnPractice').onclick = () => queue(true);
@@ -99,7 +100,8 @@ function queue(practice) {
   const name = $('name').value;
   store.set('name', name);
   net.send({ t: 'hello', name });
-  net.send({ t: 'queue', mode: selMode, practice, map: +$('mapSel').value, l: loadout });
+  store.set('team', $('teamSel').value);
+  net.send({ t: 'queue', mode: selMode, practice, map: +$('mapSel').value, team: +$('teamSel').value, l: loadout });
   // if the server never answers (sleeping free host, lost connection) tell the player instead of hanging
   clearTimeout(queue.watch);
   queue.watch = setTimeout(() => {
@@ -208,7 +210,9 @@ function renderLoadout(el, compact = false) {
 const account = { token: store.get('token', null), profile: null, durable: true, lostName: store.get('lastName', null) };
 let authMode = 'login';
 const api = async (path, opts = {}) => {
-  const r = await fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', ...(account.token ? { Authorization: 'Bearer ' + account.token } : {}), ...(opts.headers || {}) } });
+  let r;
+  try { r = await fetch(path, { ...opts, signal: AbortSignal.timeout(25000), headers: { 'Content-Type': 'application/json', ...(account.token ? { Authorization: 'Bearer ' + account.token } : {}), ...(opts.headers || {}) } }); }
+  catch { throw new Error('서버에 연결하지 못했습니다. 무료 서버가 깨어나는 중일 수 있으니 잠시 후 다시 시도하세요.'); }
   let j = {}; try { j = await r.json(); } catch {}
   if (!r.ok) throw new Error(j.error || '요청에 실패했습니다.');
   return j;
@@ -239,12 +243,12 @@ function openAuth(mode) {
 }
 async function submitAuth() {
   $('authErr').textContent = '';
-  $('authSubmit').disabled = true;
+  $('authSubmit').disabled = true; $('authErr').textContent = '처리 중…';
   try {
     const j = await api(authMode === 'login' ? '/api/login' : '/api/register', { method: 'POST', body: JSON.stringify({ name: $('authName').value.trim(), password: $('authPass').value }) });
     account.token = j.token; account.profile = j.profile; account.lostName = null; store.set('token', j.token); store.set('lastName', j.profile.name);
     net.send({ t: 'auth', token: j.token });
-    $('authModal').classList.remove('open'); $('authPass').value = '';
+    $('authModal').classList.remove('open'); $('authPass').value = ''; $('authErr').textContent = '';
     renderAccount();
   } catch (e) { $('authErr').textContent = e.message; }
   $('authSubmit').disabled = false;
@@ -265,7 +269,7 @@ async function loadRank(by = 'xp') {
 }
 
 // ---------------------------------------------------------------- lobby & match
-const CLIENT_BUILD = 'char-1';
+const CLIENT_BUILD = 'fix-1';
 net.on('welcome', (m) => {
   lobbySeen = false;
   account.durable = m.durable !== false; renderAccount();

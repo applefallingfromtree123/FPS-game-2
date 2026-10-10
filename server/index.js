@@ -65,7 +65,7 @@ app.get('/api/leaderboard', (req, res) => {
   res.json({ by, rows, me: key ? { rank: store.rankOf(key, by), profile: store.profile(key) } : null, backend: store.backend, durable: store.durable });
 });
 app.get('/health', (_req, res) => res.json({ ok: true }));
-app.get('/api/status', (_req, res) => res.json({ build: BUILD, online, storage: { backend: store.backend, durable: store.durable, ready: store.ready }, ...mm.stats() }));
+app.get('/api/status', (_req, res) => res.json({ build: BUILD, online, storage: { backend: store.backend, durable: store.durable, ready: store.ready, error: store.lastError || undefined, misconfigured: store.misconfigured || undefined }, ...mm.stats() }));
 
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 64 * 1024 });
@@ -83,7 +83,7 @@ class Client {
 wss.on('connection', (ws) => {
   const c = new Client(ws);
   online++;
-  c.send({ t: 'welcome', online, build: BUILD, durable: store.durable, ready: store.ready });
+  c.send({ t: 'welcome', online, build: BUILD, durable: store.durable, ready: store.ready, error: store.lastError || undefined, misconfigured: store.misconfigured || undefined });
   ws.on('message', (data, isBinary) => {
     if (isBinary) return;
     // simple flood protection

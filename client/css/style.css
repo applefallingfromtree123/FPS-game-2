@@ -287,3 +287,8 @@ button.primary:hover { background: #8fdcff; filter: none; }
 .lobby-panel { width: 560px; max-width: 96vw; }
 .lobby-canvas { width: 100%; height: 300px; display: block; margin: -6px 0 6px; background: radial-gradient(ellipse at 50% 35%, rgba(95,199,255,0.16), rgba(0,0,0,0) 70%); }
 @media (max-height: 560px) { .lobby-canvas { height: 150px; } }
+
+#nametags { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.ntag { position: absolute; left: 0; top: 0; font: 700 13px Rajdhani, 'Noto Sans KR', sans-serif; letter-spacing: 0.5px; padding: 1px 6px; text-shadow: 0 1px 3px #000, 0 0 2px #000; white-space: nowrap; will-change: transform; }
+.ntag.fr { color: #7fd0ff; }
+.ntag.en { color: #ff7a6e; }

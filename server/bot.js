@@ -38,7 +38,7 @@ const gauss = (rng) => { let u = 0, v = 0; while (u === 0) u = rng.next(); while
 export class BotBrain {
   constructor(match, p) {
     this.m = match; this.p = p; this.rng = match.rng;
-    this.skill = clamp(0.35 + this.rng.next() * 0.55, 0, 1);
+    this.skill = clamp(0.55 + this.rng.next() * 0.45, 0, 1);
     this.reset();
   }
 
@@ -147,10 +147,10 @@ export class BotBrain {
     let best = null, bestScore = Infinity;
     let checks = 0;
     for (const [d, q] of cand) {
-      if (d > range || checks >= 4) break;
+      if (d > range || checks >= 8) break;
       const yawTo = Math.atan2(-(q.x - p.x), -(q.z - p.z));
       const fov = Math.abs(angDiff(yawTo, p.yaw)) < 1.35;
-      const noticed = fov || d < 10 || (m.time < q.firingUntil && d < 80) || (this.target === q);
+      const noticed = fov || d < 16 || (m.time < q.firingUntil && d < 80) || (this.target === q);
       if (!noticed) continue;
       // concealment: crouched/prone targets far away in vegetation are harder to see
       if (q.stance > 0 && d > 70 && this.target !== q && this.rng.next() < (q.stance === 2 ? 0.75 : 0.4)) continue;
@@ -179,20 +179,22 @@ export class BotBrain {
       if (this.target !== best) {
         this.target = best;
         const surprise = (this.lastSeen && this.lastSeen.id === best.id && m.time - this.lastSeen.t < 2500) ? 0.4 : 1;
-        this.reactAt = m.time + (180 + (1 - this.skill) * 450 + this.rng.float(0, 160)) * surprise;
+        this.reactAt = m.time + (110 + (1 - this.skill) * 300 + this.rng.float(0, 110)) * surprise;
         this.acquiredAt = m.time;
         this.errNext = 0;
       }
       this.lastSeen = { x: best.x, y: best.y, z: best.z, t: m.time, id: best.id };
+      const d0 = Math.hypot(best.x - p.x, best.z - p.z);
       // share intel with nearby squad mates
       for (const q of m.players.values()) {
         if (q.bot && q !== p && q.alive && q.team === p.team && q.squad === p.squad && !q.bot.target && Math.hypot(q.x - p.x, q.z - p.z) < 120) {
           q.bot.lastSeen = { ...this.lastSeen };
         }
       }
+      if (d0 > 12 && d0 < 38 && m.time > this.grenadeReady && this.rng.next() < 0.06 + this.skill * 0.06) this.throwGrenade({ x: best.x, y: best.y, z: best.z });
       if (p.loadout.cls === 'recon') best.spottedUntil = Math.max(best.spottedUntil, m.time + 5000);
       // switch to secondary when the primary is useless at this range
-      const d = Math.hypot(best.x - p.x, best.z - p.z);
+      const d = d0;
       if (p.slot === 2) this.setSlot(0);
       if (w.cat === 'sniper' && d < 12 && this.rng.next() < 0.5) this.setSlot(1);
       if (p.slot === 1 && this.primaryWeapon() && d > 15) this.setSlot(0);
@@ -373,7 +375,7 @@ export class BotBrain {
       // aim error: large on acquisition, settles over time, worse vs moving targets
       if (m.time >= this.errNext) {
         const settle = clamp(1 - (m.time - this.acquiredAt) / (1500 - this.skill * 700), 0, 1);
-        const base = (0.012 + (1 - this.skill) * 0.045) * (1 + settle * 3.5) * (p.hp < 40 ? 1.3 : 1);
+        const base = (0.008 + (1 - this.skill) * 0.03) * (1 + settle * 2.5) * (p.hp < 40 ? 1.3 : 1);
         this.errYaw = gauss(this.rng) * base; this.errPitch = gauss(this.rng) * base * 0.7;
         this.errNext = m.time + 280 + this.rng.float(0, 250);
       }
@@ -390,7 +392,7 @@ export class BotBrain {
     } else if (this.lastSeen && m.time - this.lastSeen.t < 5000) {
       desiredYaw = Math.atan2(-(this.lastSeen.x - p.x), -(this.lastSeen.z - p.z));
     }
-    const turn = (2.6 + this.skill * 4.0) * dt;
+    const turn = (3.6 + this.skill * 5.0) * dt;
     if (desiredYaw !== null) {
       const dy = angDiff(desiredYaw, this.aimYaw);
       this.aimYaw += clamp(dy, -turn, turn) * (Math.abs(dy) < 0.3 ? 0.55 + this.skill * 0.35 : 1);
@@ -467,7 +469,17 @@ export class BotBrain {
     let faceMove = true;
     const engaged = this.target && this.target.alive;
     const wpn = this.weapon();
-    if (this.cover && m.time < this.coverUntil) {
+    // run away from live grenades
+    let danger = null;
+    for (const pr of m.projectiles.values()) {
+      if (pr.kind !== 'frag' || pr.owner === p.id || pr.team === p.team && m.mode.teams !== 0) continue;
+      const dd = Math.hypot(pr.x - p.x, pr.z - p.z);
+      if (dd < 9 && (!danger || dd < danger.d)) danger = { d: dd, x: pr.x, z: pr.z };
+    }
+    if (danger) {
+      const ax = p.x - danger.x, az = p.z - danger.z, al = Math.hypot(ax, az) || 1;
+      tx = p.x + (ax / al) * 8; tz = p.z + (az / al) * 8; speed = 6.8; faceMove = !engaged;
+    } else if (this.cover && m.time < this.coverUntil) {
       tx = this.cover.x; tz = this.cover.z; speed = 6.2;
       if (Math.hypot(tx - p.x, tz - p.z) < 1.2) { tx = null; wantCrouch = true; if (p.hp > 80) this.cover = null; else this.coverUntil = Math.max(this.coverUntil, m.time + 500); }
       faceMove = !engaged;
@@ -481,6 +493,8 @@ export class BotBrain {
       let mx = -uz * this.strafe, mz = ux * this.strafe;
       if (d > ideal * 1.6) { mx += ux * 0.8; mz += uz * 0.8; }
       else if (d < ideal * 0.5 && wpn.cat !== 'shotgun') { mx -= ux * 0.6; mz -= uz * 0.6; }
+      if (this.strafe === 0 && d > 28) wantCrouch = true;
+      if (p.hp < 35 && !this.cover && d > 6) { mx = -ux * 1.2 + mx * 0.5; mz = -uz * 1.2 + mz * 0.5; }
       if (d > 50 && (wpn.cat === 'sniper' || wpn.cat === 'dmr' || wpn.cat === 'lmg' || this.rng.next() < 0.02)) { mx = 0; mz = 0; wantCrouch = true; }
       if (Math.hypot(mx, mz) > 0.01) { tx = p.x + mx * 5; tz = p.z + mz * 5; }
       speed = 3.4;
@@ -489,7 +503,9 @@ export class BotBrain {
       // hunt last known enemy if close, otherwise objective
       const ls = this.lastSeen;
       if (ls && m.time - ls.t < 6000 && Math.hypot(ls.x - p.x, ls.z - p.z) < 70 && this.goalKind !== 'overwatch') {
-        tx = ls.x; tz = ls.z; speed = 3.2; wantCrouch = this.skill > 0.6;
+        tx = ls.x; tz = ls.z; speed = 4.6; wantCrouch = false;
+      } else if (this.heard && m.time - this.heard.t < 5000 && Math.hypot(this.heard.x - p.x, this.heard.z - p.z) < 90 && this.goalKind !== 'overwatch' && !m.mode.br) {
+        tx = this.heard.x; tz = this.heard.z; speed = 4.8;
       } else if (m.mode.br && m.zone && Math.hypot(p.x - m.zone.x, p.z - m.zone.z) > m.zone.r - 10) {
         tx = m.zone.nx; tz = m.zone.nz; speed = 6.5;
       } else if (this.goal) {

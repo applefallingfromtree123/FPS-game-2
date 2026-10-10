@@ -27,7 +27,7 @@ const V3 = THREE.Vector3;
 const lerpAngle = (a, b, t) => { let d = b - a; d = Math.atan2(Math.sin(d), Math.cos(d)); return a + d * t; };
 
 const GradeShader = {
-  uniforms: { tDiffuse: { value: null }, uVig: { value: 0.35 }, uDamage: { value: 0 }, uSat: { value: 1.04 }, uTime: { value: 0 }, uGrain: { value: 0.012 }, uCA: { value: 0.0005 }, uCool: { value: 0.0 } },
+  uniforms: { tDiffuse: { value: null }, uVig: { value: 0.35 }, uDamage: { value: 0 }, uSat: { value: 1.04 }, uTime: { value: 0 }, uGrain: { value: 0.0 }, uCA: { value: 0.0005 }, uCool: { value: 0.0 } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
   fragmentShader: `uniform sampler2D tDiffuse; uniform float uVig, uDamage, uSat, uTime, uGrain, uCA, uCool; varying vec2 vUv;
     float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233)) + uTime) * 43758.5453); }
@@ -146,7 +146,7 @@ export class Game {
     this.grade.uniforms.uCool.value = this.world.time.sunElev < 12 ? 0.25 : 0.55;
     comp.addPass(this.grade);
     comp.addPass(new OutputPass());
-    if (q.msaa === 0 && q.name !== 'low') { this.smaa = new SMAAPass(innerWidth * r.getPixelRatio(), innerHeight * r.getPixelRatio()); comp.addPass(this.smaa); }
+    if (q.msaa === 0) { this.smaa = new SMAAPass(innerWidth * r.getPixelRatio(), innerHeight * r.getPixelRatio()); comp.addPass(this.smaa); }
     this.composer = comp;
     // vehicles
     for (const [id, type, team] of this.vehInit) this._ensureVehicle(id, type, team);
@@ -586,6 +586,7 @@ export class Game {
     });
     this.mouse.leftPressed = this.mouse.rightPressed = false;
     safe('remote', () => this.updateRemote(dt));
+    safe('tags', () => this.updateNameTags());
     safe('env', () => this.env.update(dt, this.camera.position, this.camera));
     safe('fx', () => this.fx.update(dt));
     if (this.fx.shake > 0) { this.camera.rotation.x += (Math.random() - 0.5) * this.fx.shake * 0.05; this.camera.rotation.y += (Math.random() - 0.5) * this.fx.shake * 0.05; }
@@ -971,6 +972,43 @@ export class Game {
     return buf[0];
   }
 
+  // Floating name tags: teammates always (through walls, like Battlefield), enemies only when close and visible.
+  updateNameTags() {
+    if (!this._tagBox) {
+      this._tagBox = document.createElement('div'); this._tagBox.id = 'nametags'; $('hud').appendChild(this._tagBox);
+      this._tags = []; this._tagV = new V3();
+    }
+    const cam = this.camera, W = innerWidth, H = innerHeight;
+    const cand = [];
+    if (this.me.alive) {
+      for (const e of this.soldiers.values()) {
+        if (!e.visible || !e.alive || e.veh >= 0 || e.id === this.me.id) continue;
+        const friend = this.isFriend(e.team);
+        const d = Math.hypot(e.x - cam.position.x, e.z - cam.position.z);
+        if (d > (friend ? 90 : 55) || (this.mode.br && !friend && d > 40)) continue;
+        cand.push({ e, d, friend });
+      }
+    }
+    cand.sort((a, b) => a.d - b.d);
+    let n = 0;
+    for (const c of cand) {
+      if (n >= 18) break;
+      const e = c.e, v = this._tagV.set(e.x, e.y + (e.stance === 2 ? 0.7 : e.stance === 1 ? 1.55 : 2.15), e.z).project(cam);
+      if (v.z > 1 || v.z < -1 || Math.abs(v.x) > 1.05 || Math.abs(v.y) > 1.05) continue;
+      if (!c.friend && !this.world.lineClear(cam.position.x, cam.position.y, cam.position.z, e.x, e.y + 1.4, e.z)) continue;
+      const r = this.roster.get(e.id); if (!r) continue;
+      let el = this._tags[n];
+      if (!el) { el = document.createElement('div'); el.className = 'ntag'; this._tagBox.appendChild(el); this._tags[n] = el; }
+      const txt = (r.bot ? '' : '★ ') + r.name;
+      if (el._t !== txt || el._f !== c.friend) { el.textContent = txt; el._t = txt; el._f = c.friend; el.className = 'ntag ' + (c.friend ? 'fr' : 'en'); }
+      el.style.display = 'block';
+      el.style.transform = `translate(${((v.x * 0.5 + 0.5) * W).toFixed(0)}px,${((-v.y * 0.5 + 0.5) * H).toFixed(0)}px) translate(-50%,-100%)`;
+      el.style.opacity = c.friend ? Math.max(0.45, 1 - c.d / 200) : 0.9;
+      n++;
+    }
+    for (let i = n; i < this._tags.length; i++) this._tags[i].style.display = 'none';
+  }
+
   updateRemote(dt) {
     let created = 0; // spawn soldier models a few per frame to avoid a hitch when 100 players appear at once
     const rt = this.renderTime();
@@ -1157,6 +1195,7 @@ export class Game {
         break;
       }
       case 'rs': {
+        if (!this._rsAt || performance.now() - this._rsAt > 4000) { this._rsAt = performance.now(); this.hud.notice('보급 완료', '탄약 · 수류탄 · 체력', '#7cff8a'); }
         for (const [id, a] of this.ammo) { const w = WEAPONS[id]; a.res = Math.min(w.reserve * 2, a.res + w.mag); }
         this.grenades = Math.min(2, this.grenades + 1);
         if (this.me.loadout && this.me.loadout.cls === 'recon') this.c4Count = Math.min(3, this.c4Count + 1);

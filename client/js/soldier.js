@@ -222,12 +222,13 @@ function materialFor(pi, camoVar = 0, skinI = 1, gearI = 0) {
                    mix(mix(hh(i+vec3(0,0,1)), hh(i+vec3(1,0,1)), f.x), mix(hh(i+vec3(0,1,1)), hh(i+vec3(1,1,1)), f.x), f.y), f.z); }`)
       .replace('#include <color_fragment>', `#include <color_fragment>
         float kind = vCamo;
-        if (kind > 1.5 && kind < 2.5) diffuseColor.rgb *= uGear * 2.2 * (0.92 + vn(vObj * 60.0) * 0.16);
+        float dfade = 1.0 - smoothstep(0.0025, 0.007, length(fwidth(vObj)));   // fine detail fades with distance (no sparkle)
+        if (kind > 1.5 && kind < 2.5) diffuseColor.rgb *= uGear * 2.2 * (1.0 + (vn(vObj * 60.0) - 0.5) * 0.16 * dfade);
         else if (kind > 3.5 && kind < 4.5) {
           // skin: subtle pores + warmer cheeks/lips area
           float pores = vn(vObj * 140.0);
-          diffuseColor.rgb = uSkin * (0.93 + pores * 0.1) * mix(vec3(1.0), vec3(1.06, 0.97, 0.95), smoothstep(1.6, 1.72, vObj.y));
-        } else if (kind > 5.5) diffuseColor.rgb *= 0.95 + vn(vObj * 90.0) * 0.1;
+          diffuseColor.rgb = uSkin * (1.0 + (pores - 0.5) * 0.1 * dfade) * mix(vec3(1.0), vec3(1.06, 0.97, 0.95), smoothstep(1.6, 1.72, vObj.y));
+        } else if (kind > 5.5) diffuseColor.rgb *= 1.0 + (vn(vObj * 90.0) - 0.5) * 0.1 * dfade;
         if (kind > 0.5 && kind < 1.5) {
           float n1 = vn(vObj * 9.0) * 0.65 + vn(vObj * 23.0) * 0.35;
           float n2 = vn(vObj * 13.0 + 7.3);
@@ -235,7 +236,7 @@ function materialFor(pi, camoVar = 0, skinI = 1, gearI = 0) {
           c = mix(c, uCamo[1], step(0.52, n1));
           c = mix(c, uCamo[2], step(0.6, n2));
           c = mix(c, uCamo[3], step(0.7, n1 * 0.6 + n2 * 0.5));
-          float weave = 0.9 + vn(vObj * 260.0) * 0.18;   // fabric weave
+          float weave = 1.0 + (vn(vObj * 160.0) - 0.5) * 0.18 * dfade;   // fabric weave
           diffuseColor.rgb = c * weave;
           if (vObj.y > 1.68) diffuseColor.rgb = mix(c, uHelm, 0.45);
         }`)
@@ -244,7 +245,7 @@ function materialFor(pi, camoVar = 0, skinI = 1, gearI = 0) {
       .replace('#include <metalnessmap_fragment>', `#include <metalnessmap_fragment>
         if (kind > 4.5 && kind < 5.5) metalnessFactor = 0.85;`)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
-        if (kind < 3.5 || kind > 5.5) { vec3 nn = vec3(vn(vObj * 170.0), vn(vObj * 170.0 + 3.1), vn(vObj * 170.0 + 7.7)) - 0.5; normal = normalize(normal + nn * 0.22); }`);
+        if (kind < 3.5 || kind > 5.5) { vec3 nn = vec3(vn(vObj * 110.0), vn(vObj * 110.0 + 3.1), vn(vObj * 110.0 + 7.7)) - 0.5; normal = normalize(normal + nn * 0.2 * dfade); }`);
   };
   matCache.set(key, mat);
   return mat;

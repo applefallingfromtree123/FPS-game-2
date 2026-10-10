@@ -258,7 +258,7 @@ export class Match {
   }
 
   // A late-joining human replaces a bot to keep the player count constant
-  replaceBotWithHuman(name, client, loadout) {
+  replaceBotWithHuman(name, client, loadout, prefTeam = null) {
     const bots = this.bots();
     let team = null, squad = null;
     if (bots.length) {
@@ -266,7 +266,7 @@ export class Match {
       if (this.mode.teams === 2) {
         const c = [0, 0];
         for (const q of this.players.values()) if (!q.isBot) c[q.team]++;
-        const t = c[0] <= c[1] ? 0 : 1;
+        const t = prefTeam !== null ? prefTeam : c[0] <= c[1] ? 0 : 1;
         victim = bots.find((b) => b.team === t && b.vehicle < 0) || bots[0];
         team = victim.team; squad = victim.squad;
       } else victim = bots[0];
@@ -937,6 +937,14 @@ export class Match {
       }
       if (p.y < this.world.waterLevel - 3 && p.vehicle < 0) this.applyDamage(p, 10 * dt, null, 254, false, p.x, p.z);
       if (p.vehicle >= 0) { const v = this.vehicles.find((q) => q.id === p.vehicle); if (v) { p.x = v.x; p.y = v.y; p.z = v.z; } }
+    }
+    // HQ resupply: standing at your own base refills ammo/grenades/health every 2 s
+    if (!this.mode.br && this.mode.teams === 2 && Math.floor(this.time / 2000) !== Math.floor((this.time - dt * 1000) / 2000)) {
+      for (const p of this.players.values()) {
+        const b = this.world.bases[p.team];
+        if (p.isBot || !p.alive || !b || p.vehicle >= 0 || Math.hypot(p.x - b.x, p.z - b.z) > 30) continue;
+        p.hp = Math.min(100, p.hp + 25); p.pev.push(['rs']);
+      }
     }
     if (this.boxes.size) {
       for (const b of [...this.boxes.values()]) {

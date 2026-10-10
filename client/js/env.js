@@ -9,7 +9,7 @@ import * as TX from './textures.js';
 import { buildTree, buildBush, buildRock, leafTexture, needleTexture, barkTexture } from './foliage.js';
 
 export const QUALITY = [
-  { name: 'low',    pixelRatio: 0.75, shadow: 1024, grass: 40000,  grassR: 40, treeNear: 160, treeFar: 700,  terrainStep: 2, bloom: false, msaa: 0, far: 1600 },
+  { name: 'low',    pixelRatio: 1.0,  shadow: 1024, grass: 40000,  grassR: 40, treeNear: 160, treeFar: 700,  terrainStep: 2, bloom: false, msaa: 0, far: 1600 },
   { name: 'medium', pixelRatio: 1.0,  shadow: 2048, grass: 110000, grassR: 55, treeNear: 240, treeFar: 1100, terrainStep: 1, bloom: true,  msaa: 0, far: 2200 },
   { name: 'high',   pixelRatio: 1.0,  shadow: 2048, grass: 200000, grassR: 70, treeNear: 320, treeFar: 1500, terrainStep: 1, bloom: true,  msaa: 4, far: 2800 },
   { name: 'ultra',  pixelRatio: 1.5,  shadow: 4096, grass: 320000, grassR: 85, treeNear: 420, treeFar: 2000, terrainStep: 1, bloom: true,  msaa: 4, far: 3200 },
@@ -338,8 +338,8 @@ export class Environment {
     const bark = new THREE.MeshStandardMaterial({ map: barkTexture(), vertexColors: true, roughness: 0.95, side: THREE.DoubleSide });
     this._windPatch(bark, 0.004);
     const foliage = col(this.biome.foliage);
-    const broad = new THREE.MeshStandardMaterial({ map: leafTex, alphaTest: 0.5, vertexColors: true, side: THREE.DoubleSide, roughness: 0.8, emissive: foliage.clone().multiplyScalar(0.05) });
-    const needle = new THREE.MeshStandardMaterial({ map: needleTex, alphaTest: 0.45, vertexColors: true, side: THREE.DoubleSide, roughness: 0.85, emissive: foliage.clone().multiplyScalar(0.04) });
+    const broad = new THREE.MeshStandardMaterial({ map: leafTex, alphaTest: 0.5, alphaToCoverage: this.q.msaa > 0, vertexColors: true, side: THREE.DoubleSide, roughness: 0.8, emissive: foliage.clone().multiplyScalar(0.05) });
+    const needle = new THREE.MeshStandardMaterial({ map: needleTex, alphaTest: 0.45, alphaToCoverage: this.q.msaa > 0, vertexColors: true, side: THREE.DoubleSide, roughness: 0.85, emissive: foliage.clone().multiplyScalar(0.04) });
     this._windPatch(broad, 0.016, true); this._windPatch(needle, 0.012, true);
     this.leafMats = { broad, needle };
     for (const type of types) {
