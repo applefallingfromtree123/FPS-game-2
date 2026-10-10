@@ -260,3 +260,11 @@ button.primary:hover { background: #8fdcff; filter: none; }
 #sightCv { opacity: 0; transition: opacity .08s linear; }
 #scopeInfo { position: absolute; left: 50%; bottom: 7vh; transform: translateX(-50%); font: 600 14px Rajdhani, sans-serif; letter-spacing: 3px; color: rgba(190,225,250,0.75); text-shadow: 0 1px 3px #000; }
 .in-gg::after { background: linear-gradient(100deg, transparent, rgba(255,255,255,0.5), transparent) !important; mix-blend-mode: screen !important; filter: blur(7px); }
+
+/* ---------- home: keep the start buttons always reachable ---------- */
+.screen { height: 100vh; height: 100dvh; }
+#menu .menu-right { -webkit-overflow-scrolling: touch; overscroll-behavior: contain; touch-action: pan-y; padding-bottom: 0; }
+#tab-play .play-row { position: sticky; bottom: 0; z-index: 5; margin: 18px -48px 0; padding: 14px 48px 18px; background: linear-gradient(180deg, rgba(8,13,19,0), rgba(8,13,19,0.92) 28%); backdrop-filter: blur(6px); align-items: center; }
+.sel-mode { flex: 1 0 100%; font-size: 14px; color: var(--muted); } .sel-mode b { color: var(--accent2); letter-spacing: 1px; }
+#tab-play .hint { padding-bottom: 20px; }
+@media (max-width: 900px) { .menu-left { width: 240px; padding: 28px 18px; } .menu-right { padding: 28px 20px; } #tab-play .play-row { margin: 18px -20px 0; padding: 12px 20px 16px; } .logo { font-size: 42px; } }

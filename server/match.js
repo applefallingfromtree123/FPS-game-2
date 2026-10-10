@@ -359,7 +359,7 @@ export class Match {
       pos = this.findFreeSpot(base.x + this.rng.float(-25, 25), base.z + this.rng.float(-25, 25));
     }
     p.x = pos.x; p.z = pos.z; p.y = w.groundAt(p.x, p.z);
-    p.hp = 100; p.alive = true; p.stance = 0; p.para = 0; p.slot = 0;
+    p.hp = 100; p.alive = true; p.stance = 0; p.para = 0; p.slot = 0; p.airTop = null;
     p.lastDamageAt = -1e9; p.deployPending = false; p.outSince = 0;
     p.yaw = Math.atan2(-(0 - p.x), -(0 - p.z)); // face map centre
     p.weaponId = this.currentWeapon(p);
@@ -694,10 +694,12 @@ export class Match {
     switch (msg.t) {
       case 'st': {
         if (!p.alive) return;
+        const prevY = p.y;
         if (Array.isArray(msg.p) && msg.p.length === 3 && msg.p.every(Number.isFinite)) {
           const lim = this.world.half - 2;
           p.x = clamp(msg.p[0], -lim, lim); p.y = clamp(msg.p[1], -200, 3000); p.z = clamp(msg.p[2], -lim, lim);
         }
+        this._fallCheck(p, prevY, msg.pa | 0);
         if (Array.isArray(msg.r)) { p.yaw = +msg.r[0] || 0; p.pitch = clamp(+msg.r[1] || 0, -1.6, 1.6); }
         p.stance = msg.s === 1 ? 1 : msg.s === 2 ? 2 : 0;
         p.ads = !!msg.a;
@@ -798,6 +800,31 @@ export class Match {
         break;
       }
       case 'ping': p.ping = clamp(msg.v | 0, 0, 999); break;
+    }
+  }
+
+  // Fall damage: measure the drop between leaving the ground and touching it again.
+  // Safe up to 5 m; 10 damage per extra metre, so ~15 m is lethal. Parachutes, vehicles and water are exempt.
+  _fallCheck(p, prevY, para) {
+    if (p.vehicle >= 0 || para > 0 || !p.alive) { p.airTop = null; return; }
+    const w = this.world;
+    const ground = w.groundAt(p.x, p.z, p.y + 0.45);
+    // swimming / landing in water cancels the fall
+    if (w.waterLevel > -100 && w.heightAt(p.x, p.z) < w.waterLevel - 0.5 && p.y <= w.waterLevel + 0.3) { p.airTop = null; return; }
+    const onGround = p.y <= ground + 0.25;
+    if (!onGround) {
+      p.airTop = p.airTop == null ? Math.max(prevY, p.y) : Math.max(p.airTop, p.y);
+      return;
+    }
+    if (p.airTop != null) {
+      const drop = p.airTop - p.y;
+      p.airTop = null;
+      const inWater = w.waterLevel > -100 && w.heightAt(p.x, p.z) < w.waterLevel - 0.5;
+      if (drop > 5 && drop < 400 && !inWater) {
+        const dmg = Math.min(130, (drop - 5) * 10);
+        this.applyDamage(p, dmg, null, 256, false, p.x, p.z);
+        if (p.alive) p.pev.push(['fall', Math.round(drop)]);
+      }
     }
   }
 

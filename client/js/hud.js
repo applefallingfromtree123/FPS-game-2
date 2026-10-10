@@ -79,7 +79,7 @@ export class HUD {
       const cls = id === g.me.id ? 'me' : r.team === g.me.team && g.mode.teams !== 0 ? (r.squad === g.me.squad ? 's' : 'f') : 'e';
       return `<span class="${cls}">${escapeHtml(r.name)}</span>`;
     };
-    const wname = weaponId < WEAPONS.length ? WEAPONS[weaponId].name : { 240: '차량 기관총', 241: '전차포', 242: '기관포', 243: '차량', 244: '로켓', 245: '미사일', 250: '폭발', 251: '수류탄', 252: 'C4', 253: '충돌', 254: '자살', 255: '화염지대' }[weaponId] || '';
+    const wname = weaponId < WEAPONS.length ? WEAPONS[weaponId].name : { 240: '차량 기관총', 241: '전차포', 242: '기관포', 243: '차량', 244: '로켓', 245: '미사일', 250: '폭발', 251: '수류탄', 252: 'C4', 253: '충돌', 254: '자살', 255: '화염지대', 256: '추락' }[weaponId] || '';
     const div = document.createElement('div');
     div.className = 'kf';
     div.innerHTML = killer >= 0 && killer !== victim ? `${name(killer)}<span class="w">[${wname}${head ? ' ✛' : ''}]</span>${name(victim)}` : `<span class="w">[${wname}]</span>${name(victim)}`;

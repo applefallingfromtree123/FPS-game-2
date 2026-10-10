@@ -46,7 +46,7 @@ function buildMenu() {
   const modes = $('modes');
   const GROUPS = [['large', '대규모 전투'], ['small', '소규모 보병전'], ['special', '특수 모드']];
   modes.innerHTML = GROUPS.map(([g, label]) => `<div class="grp">${label}</div>` + Object.values(MODES).filter((m) => m.group === g).map((m) => `<div class="mode-card ${m.br ? 'redsec' : ''}" data-mode="${m.id}"><div class="cap">${m.maxPlayers}명</div><div class="en">${m.en}</div><div class="ko">${m.name}</div><div class="desc">${m.desc}</div></div>`).join('')).join('');
-  const sel = () => { for (const c of modes.querySelectorAll('.mode-card')) c.classList.toggle('sel', c.dataset.mode === selMode); };
+  const sel = () => { for (const c of modes.querySelectorAll('.mode-card')) c.classList.toggle('sel', c.dataset.mode === selMode); const m = MODES[selMode]; if (m && $('selModeLabel')) $('selModeLabel').innerHTML = `선택한 모드 <b>${m.en}</b> · ${m.name} (${m.maxPlayers}명)`; };
   for (const c of modes.querySelectorAll('.mode-card')) c.addEventListener('click', () => { selMode = c.dataset.mode; store.set('mode', selMode); sel(); });
   sel();
   $('mapSel').innerHTML = '<option value="-1">무작위 전장</option>' + MAPS.map((m) => `<option value="${m.id}">${m.name} — ${biomeName(m.biome)}, ${m.size}m</option>`).join('');
@@ -80,17 +80,33 @@ function exitPausePanelToSettings() {
 function biomeName(b) { return { forest: '숲', autumn: '가을 숲', desert: '사막', snow: '설원', jungle: '정글', plains: '평원', mountains: '산악', urban: '도시', wasteland: '황무지', savanna: '사바나' }[b] || b; }
 
 function queue(practice) {
-  audio.init();
-  store.set('name', $('name').value);
-  net.send({ t: 'hello', name: $('name').value });
-  net.send({ t: 'queue', mode: selMode, practice, map: +$('mapSel').value, l: loadout });
+  // UI feedback first, so the press is always visible even if something below fails
+  const mode = MODES[selMode] || MODES.conquest;
+  selMode = mode.id;
+  pendingMatch = null; lobbySeen = false;
   if (!practice) {
     show('lobby');
-    $('lobbyMode').textContent = MODES[selMode].en;
+    $('lobbyMode').textContent = mode.en + ' · ' + mode.name;
     $('lobbyMap').textContent = '';
     $('lobbyTimer').textContent = '매칭 중…';
-  } else showLoading('연습전 준비 중');
+  } else showLoading('연습전 준비 중', mode.name);
+  try { audio.init(); } catch (e) { console.warn('audio init failed', e); }
+  const name = $('name').value;
+  store.set('name', name);
+  net.send({ t: 'hello', name });
+  net.send({ t: 'queue', mode: selMode, practice, map: +$('mapSel').value, l: loadout });
+  // if the server never answers (sleeping free host, lost connection) tell the player instead of hanging
+  clearTimeout(queue.watch);
+  queue.watch = setTimeout(() => {
+    if (!game && !pendingMatch && (document.getElementById('lobby').classList.contains('active') || document.getElementById('loading').classList.contains('active')) && !lobbySeen) {
+      const msg = '서버 응답이 없습니다. 무료 서버는 잠들어 있다가 깨어나는 데 1분 가까이 걸릴 수 있습니다. 잠시 기다리거나 취소 후 다시 시도하세요.';
+      if (document.getElementById('lobby').classList.contains('active')) $('lobbyTimer').textContent = '서버 연결 중…';
+      else $('loadingSub').textContent = msg;
+      $('lobbyNames').textContent = msg;
+    }
+  }, 8000);
 }
+let lobbySeen = false;
 
 // ---------------------------------------------------------------- loadout editor
 function statBar(label, v, max, txt) { return `<div class="stat"><span>${label}</span><div class="b"><i style="width:${Math.max(3, Math.min(100, (v / max) * 100))}%"></i></div><em>${txt ?? Math.round(v)}</em></div>`; }
@@ -207,11 +223,13 @@ async function loadRank(by = 'xp') {
 }
 
 // ---------------------------------------------------------------- lobby & match
-const CLIENT_BUILD = 'acct-2';
+const CLIENT_BUILD = 'acct-3';
 net.on('welcome', (m) => {
+  lobbySeen = false;
   if (account.token) net.send({ t: 'auth', token: account.token }); $('online').textContent = `● 서버 온라인 · 접속자 ${m.online}명 · 서버 ${m.build} · 화면 ${CLIENT_BUILD}${document.body.classList.contains('touch') ? ' · 터치 조작 켜짐' : ''}`; net.send({ t: 'hello', name: $('name').value }); });
 net.on('close', () => { $('online').textContent = '서버 연결 끊김 — 재연결 중…'; });
 net.on('lobby', (m) => {
+  lobbySeen = true;
   if (game) return;
   show('lobby');
   $('lobbyMode').textContent = MODES[m.mode].en + ' · ' + MODES[m.mode].name;

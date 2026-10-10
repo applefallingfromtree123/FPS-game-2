@@ -669,7 +669,7 @@ export class Game {
     if (this.onGround && gNew - this.pos.y > 0.6 && gNew > w.heightAt(p.x, p.z) + 0.1) { p.x = this.pos.x; p.z = this.pos.z; }
     let g = w.groundAt(p.x, p.z, this.pos.y + 0.35);
     if (swimming || (g < w.waterLevel - 1.4 && p.y < w.waterLevel - 1.3)) { p.y = Math.max(p.y, w.waterLevel - 1.3); this.vel.y = Math.max(0, this.vel.y); this.onGround = false; if (k.Space) p.y += dt; }
-    if (p.y <= g) { p.y = g; if (this.vel.y < -16) this.hud.notice(''); this.vel.y = 0; this.onGround = true; }
+    if (p.y <= g) { p.y = g; if (this.vel.y < -7 && !this.onGround) { this.landDip = Math.min(0.4, -this.vel.y * 0.016); this.audio.step(true); } this.vel.y = 0; this.onGround = true; }
     else if (this.onGround && p.y - g < 0.45 && this.vel.y <= 0) { p.y = g; this.vel.y = 0; }
     else this.onGround = false;
     this.pos.set(p.x, p.y, p.z);
@@ -718,7 +718,8 @@ export class Game {
     const amp = (this.adsT > 0.5 && this.zoom >= 2 ? 0.0006 * Math.min(this.zoom, 8) : 0.00015) * this.adsT * (holding ? 0.1 : 1) * (this.stance === 2 ? 0.4 : this.stance === 1 ? 0.7 : 1) * (hs > 0.5 ? 2.2 : 1) * (this.breath <= 0 ? 1.8 : 1);
     this.sway.x = (Math.sin(now * 0.0013) + Math.sin(now * 0.0031 + 1.7) * 0.5) * amp;
     this.sway.y = (Math.cos(now * 0.0011 + 0.5) + Math.sin(now * 0.0027) * 0.5) * amp;
-    this.camera.position.set(this.pos.x, this.pos.y + this.eyeH + bob, this.pos.z);
+    this.landDip = Math.max(0, (this.landDip || 0) - dt * 2.2);
+    this.camera.position.set(this.pos.x, this.pos.y + this.eyeH + bob - this.landDip, this.pos.z);
     this.camera.rotation.set(this.cam.pitch + this.sway.y, this.cam.yaw + this.sway.x, 0);
     const z = this.vmGun && this.adsT > 0 ? 1 + (this.zoom - 1) * this.adsT : 1;
     const base = THREE.MathUtils.degToRad(this.settings.fov);
@@ -1128,6 +1129,7 @@ export class Game {
         break;
       }
       case 'sp': this.onSpawn(e); break;
+      case 'fall': this.landDip = 0.45; this.fx.shake = Math.max(this.fx.shake, 0.5); this.hud.notice('낙하 피해', `${e[1]}m 높이에서 추락`, '#ff8a7a'); break;
       case 've': {
         const [, vid, type, x, y, z, yaw, pitch, roll, , clip] = e;
         this.vehicle = new VehicleController(this, vid, type, [x, y, z, yaw, pitch, roll, 0, 0, 0, 0, clip]);
