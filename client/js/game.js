@@ -62,7 +62,7 @@ const SunShaftShader = {
         acc += s * b * decay; decay *= 0.93;
       }
       float falloff = smoothstep(1.0, 0.0, dist);
-      gl_FragColor = vec4(base.rgb + acc / 30.0 * uColor * uInt * falloff * 0.9, base.a); }`,
+      gl_FragColor = vec4(base.rgb + acc / 30.0 * uColor * uInt * falloff * 0.45, base.a); }`,
 };
 
 export class Game {

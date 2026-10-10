@@ -207,7 +207,7 @@ async function loadRank(by = 'xp') {
 }
 
 // ---------------------------------------------------------------- lobby & match
-const CLIENT_BUILD = 'acct-1';
+const CLIENT_BUILD = 'acct-2';
 net.on('welcome', (m) => {
   if (account.token) net.send({ t: 'auth', token: account.token }); $('online').textContent = `● 서버 온라인 · 접속자 ${m.online}명 · 서버 ${m.build} · 화면 ${CLIENT_BUILD}${document.body.classList.contains('touch') ? ' · 터치 조작 켜짐' : ''}`; net.send({ t: 'hello', name: $('name').value }); });
 net.on('close', () => { $('online').textContent = '서버 연결 끊김 — 재연결 중…'; });
