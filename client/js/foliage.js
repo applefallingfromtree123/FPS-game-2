@@ -34,11 +34,11 @@ export function needleTexture() {
   const r = new Rng(77);
   g.clearRect(0, 0, W, H);
   g.strokeStyle = 'rgb(110,100,90)'; g.lineWidth = 3; g.beginPath(); g.moveTo(W / 2, H - 2); g.lineTo(W / 2, 4); g.stroke();
-  for (let y = H - 10; y > 6; y -= 2.2) {
+  for (let y = H - 10; y > 6; y -= 1.3) {
     const t = y / H, len = 14 + (W / 2 - 18) * Math.min(1, (1 - t) * 1.6 + 0.2) * (0.55 + 0.45 * Math.sin(Math.PI * Math.min(1, (1 - t) * 1.1)));
     for (const s of [-1, 1]) {
       const shade = r.int(120, 235);
-      g.strokeStyle = `rgb(${shade},${shade},${shade})`; g.lineWidth = r.float(1.4, 2.4);
+      g.strokeStyle = `rgb(${shade},${shade},${shade})`; g.lineWidth = r.float(1.0, 1.7);
       g.beginPath(); g.moveTo(W / 2, y); g.lineTo(W / 2 + s * len * r.float(0.8, 1.05), y - len * 0.45 * r.float(0.7, 1.2)); g.stroke();
     }
   }
@@ -71,7 +71,7 @@ function card(w, h, pos, q, tint, center, nBlend = 0.8, up = false) {
     n[i * 3] = o.x; n[i * 3 + 1] = o.y; n[i * 3 + 2] = o.z;
     // inner parts of the crown are darker (cheap ambient occlusion)
     const d = Math.min(1, v.distanceTo(center) / 3.2);
-    const ao = 0.55 + 0.45 * d;
+    const ao = 0.72 + 0.28 * d;
     c[i * 3] = tint.r * ao; c[i * 3 + 1] = tint.g * ao; c[i * 3 + 2] = tint.b * ao;
   }
   g.setAttribute('normal', new THREE.BufferAttribute(n, 3));
@@ -126,7 +126,7 @@ export function buildTree(type, foliage) {
         const dir = new THREE.Vector3(Math.cos(a), -Math.sin(droop), Math.sin(a)).normalize();
         const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
         const pos = new THREE.Vector3(Math.cos(a) * len * 0.5 * Math.cos(droop), y - Math.sin(droop) * len * 0.5 + r.float(-0.08, 0.08), Math.sin(a) * len * 0.5 * Math.cos(droop));
-        const tint = leafCol.clone().multiplyScalar(0.85 + r.next() * 0.3);
+        const tint = leafCol.clone().multiplyScalar(1.25 + r.next() * 0.35);
         if (type === 'snowpine' && k > 1) tint.lerp(new THREE.Color(0.92, 0.95, 1), 0.38 + k * 0.03);
         leaf.push(card(1.5, len * 1.15, pos, q, tint, new THREE.Vector3(0, y - 0.2, 0), 0.45, true));
         // cross card for volume
@@ -145,7 +145,7 @@ export function buildTree(type, foliage) {
       const u = r.float(-1, 1), a = r.float(0, 6.28), s = Math.sqrt(1 - u * u), rr = Math.cbrt(r.next());
       const pos = new THREE.Vector3(Math.cos(a) * s * rx * rr, cy + u * ry * rr, Math.sin(a) * s * rx * rr);
       const size = r.float(1.7, 2.7);
-      const tint = leafCol.clone().multiplyScalar(0.78 + r.next() * 0.4);
+      const tint = leafCol.clone().multiplyScalar(1.1 + r.next() * 0.4);
       leaf.push(card(size, size, pos, rq(r), tint, center, 0.85));
     }
     lo = new THREE.IcosahedronGeometry(3.2, 0).translate(0, cy, 0);

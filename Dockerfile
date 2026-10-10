@@ -7,7 +7,9 @@ RUN npm ci --omit=dev && test -f node_modules/express/index.js && test -f node_m
 COPY client ./client
 COPY server ./server
 COPY shared ./shared
-ENV NODE_ENV=production PORT=8000
+ENV NODE_ENV=production PORT=8000 DATA_DIR=/app/data
+# accounts/ranking are stored here (mount a volume on /app/data to keep them across redeploys)
+RUN mkdir -p /app/data && chown -R node:node /app/data
 EXPOSE 8000
 # run as the unprivileged "node" user (uid 1000)
 USER node

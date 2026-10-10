@@ -27,13 +27,13 @@ const V3 = THREE.Vector3;
 const lerpAngle = (a, b, t) => { let d = b - a; d = Math.atan2(Math.sin(d), Math.cos(d)); return a + d * t; };
 
 const GradeShader = {
-  uniforms: { tDiffuse: { value: null }, uVig: { value: 0.35 }, uDamage: { value: 0 }, uSat: { value: 1.04 }, uTime: { value: 0 }, uGrain: { value: 0.025 }, uCA: { value: 0.0016 }, uCool: { value: 0.0 } },
+  uniforms: { tDiffuse: { value: null }, uVig: { value: 0.35 }, uDamage: { value: 0 }, uSat: { value: 1.04 }, uTime: { value: 0 }, uGrain: { value: 0.025 }, uCA: { value: 0.0005 }, uCool: { value: 0.0 } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
   fragmentShader: `uniform sampler2D tDiffuse; uniform float uVig, uDamage, uSat, uTime, uGrain, uCA, uCool; varying vec2 vUv;
     float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233)) + uTime) * 43758.5453); }
     void main(){
       vec2 d = vUv - 0.5; float r2 = dot(d, d);
-      vec2 o = d * r2 * uCA * 14.0;                       // chromatic aberration grows toward the edges
+      vec2 o = d * r2 * uCA * 8.0;                       // chromatic aberration grows toward the edges
       vec3 col = vec3(texture2D(tDiffuse, vUv + o).r, texture2D(tDiffuse, vUv).g, texture2D(tDiffuse, vUv - o).b);
       float l = dot(col, vec3(0.299,0.587,0.114));
       col = mix(vec3(l), col, uSat * (1.0 - uDamage * 0.7));
@@ -58,11 +58,11 @@ const SunShaftShader = {
       for (int i = 0; i < 30; i++) {
         uv += stepv;
         vec3 s = texture2D(tDiffuse, uv).rgb;
-        float b = smoothstep(0.55, 1.1, dot(s, vec3(0.333)));
-        acc += s * b * decay; decay *= 0.935;
+        float b = smoothstep(1.0, 2.2, dot(s, vec3(0.333)));
+        acc += s * b * decay; decay *= 0.93;
       }
-      float falloff = smoothstep(1.3, 0.0, dist);
-      gl_FragColor = vec4(base.rgb + acc / 30.0 * uColor * uInt * falloff * 2.4, base.a); }`,
+      float falloff = smoothstep(1.0, 0.0, dist);
+      gl_FragColor = vec4(base.rgb + acc / 30.0 * uColor * uInt * falloff * 0.9, base.a); }`,
 };
 
 export class Game {
@@ -125,10 +125,10 @@ export class Game {
       const sunLight = new THREE.PointLight(0xffffff, 0, 0);
       const flare = new Lensflare();
       const tc = this.env.sun.color.clone();
-      flare.addElement(new LensflareElement(TX.radialSprite('rgba(255,255,255,1)', 'rgba(255,255,255,0)', 128), 420, 0, tc));
-      flare.addElement(new LensflareElement(TX.radialSprite('rgba(255,220,170,0.5)', 'rgba(255,200,150,0)', 64), 150, 0.35, new THREE.Color(1, 0.8, 0.6)));
-      flare.addElement(new LensflareElement(TX.radialSprite('rgba(150,200,255,0.4)', 'rgba(150,200,255,0)', 64), 90, 0.62, new THREE.Color(0.7, 0.85, 1)));
-      flare.addElement(new LensflareElement(TX.radialSprite('rgba(255,255,255,0.35)', 'rgba(255,255,255,0)', 64), 210, 0.9, new THREE.Color(0.9, 0.95, 1)));
+      flare.addElement(new LensflareElement(TX.radialSprite('rgba(255,255,255,0.55)', 'rgba(255,255,255,0)', 128), 240, 0, tc));
+      flare.addElement(new LensflareElement(TX.radialSprite('rgba(255,220,170,0.28)', 'rgba(255,200,150,0)', 64), 120, 0.35, new THREE.Color(1, 0.8, 0.6)));
+      flare.addElement(new LensflareElement(TX.radialSprite('rgba(150,200,255,0.25)', 'rgba(150,200,255,0)', 64), 80, 0.62, new THREE.Color(0.7, 0.85, 1)));
+      flare.addElement(new LensflareElement(TX.radialSprite('rgba(255,255,255,0.18)', 'rgba(255,255,255,0)', 64), 170, 0.9, new THREE.Color(0.9, 0.95, 1)));
       sunLight.add(flare);
       this.scene.add(sunLight);
       this.sunFlare = sunLight;
