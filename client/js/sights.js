@@ -43,11 +43,11 @@ export function drawScope(cv, kind, zoom) {
   const cx = w / 2, cy = h / 2;
   const R = m * (kind === 'scope' ? 0.46 : 0.40);
 
-  // outside the lens: opaque black tube with a soft inner edge
-  g.fillStyle = '#000';
+  // outside the lens: translucent dark tube with a soft inner edge
+  g.fillStyle = 'rgba(0,0,0,0.62)';   // translucent: the surroundings stay visible around the lens
   g.beginPath(); g.rect(0, 0, w, h); g.arc(cx, cy, R, 0, TAU, true); g.fill('evenodd');
   const edge = g.createRadialGradient(cx, cy, R * 0.82, cx, cy, R);
-  edge.addColorStop(0, 'rgba(0,0,0,0)'); edge.addColorStop(0.75, 'rgba(0,0,0,0.35)'); edge.addColorStop(1, 'rgba(0,0,0,0.95)');
+  edge.addColorStop(0, 'rgba(0,0,0,0)'); edge.addColorStop(0.75, 'rgba(0,0,0,0.35)'); edge.addColorStop(1, 'rgba(0,0,0,0.8)');
   g.fillStyle = edge; g.beginPath(); g.arc(cx, cy, R, 0, TAU); g.fill();
   // glass rim + faint lens tint / glint
   g.strokeStyle = 'rgba(120,150,170,0.35)'; g.lineWidth = 3 * dpr; g.beginPath(); g.arc(cx, cy, R - 1.5 * dpr, 0, TAU); g.stroke();

@@ -376,6 +376,17 @@ export class Game {
     gunInfo.muzzle.add(this.vmFlash);
     this.vm.add(grp);
     this.vmGun = { grp, info: gunInfo, w, magRest: gunInfo.mag ? gunInfo.mag.position.clone() : null };
+    // sight housings / posts / rails sit right in front of the eye when aiming: hide them in ADS (the reticle overlay replaces them)
+    this.vmGun.hideParts = [];
+    if (w && gunInfo.sightY) {
+      gunInfo.group.updateMatrixWorld(true);
+      const bb = new THREE.Box3(), c = new V3();
+      gunInfo.group.traverse((o) => {
+        if (!o.isMesh || o === this.vmFlash) return;
+        bb.setFromObject(o); bb.getCenter(c);
+        if (c.y > gunInfo.sightY - 0.035 && bb.min.y > -0.02 && c.z > -0.45 && c.z < 0.2) this.vmGun.hideParts.push(o);
+      });
+    }
     const sight = w && (w.id === this.me.loadout.primary && !this.mode.br) ? this.me.loadout.sight : w ? w.sight : 'iron';
     this.sightKind = sight;
     this.zoom = w ? zoomFor(w, sight) : 1;
@@ -747,6 +758,7 @@ export class Game {
     $('sightCv').style.opacity = collim ? 1 : 0;
     if (scoped && this.frame % 6 === 0) $('scopeInfo').textContent = `${this.zoom}X${this.zoom >= 3 ? '  ·  호흡 정지 [Shift] ' + Math.round(this.breath * 100) + '%' : ''}`;
     if (this.vmGun) this.vmGun.grp.visible = !scoped;
+    if (this.vmGun && this.vmGun.hideParts) { const hide = this.adsT > 0.5 && this.sightKind !== 'iron'; for (const o of this.vmGun.hideParts) o.visible = !hide; }
   }
 
   updateViewmodel(dt, now, mdx, mdy, hs) {
@@ -755,7 +767,7 @@ export class Game {
     const ads = this.adsT;
     const e = ads * ads * (3 - 2 * ads);
     const hip = new V3(0.15, -0.16, -0.4);
-    const adsPos = new V3(0, -info.sightY, info.w && info.w.cat === 'pistol' ? -0.34 : -0.24);
+    const adsPos = new V3(0, -info.sightY - (this.sightKind !== 'iron' ? 0.035 : 0), info.w && info.w.cat === 'pistol' ? -0.34 : -0.24);
     const pos = hip.clone().lerp(adsPos, e);
     // sway & bob
     this.swayX = (this.swayX || 0) * Math.exp(-dt * 8) + mdx * 0.00025;
