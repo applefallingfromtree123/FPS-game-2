@@ -755,6 +755,7 @@ export class Game {
       else { drawCollimator(cc, kind); sc.getContext('2d').clearRect(0, 0, sc.width, sc.height); }
     }
     $('scope').style.display = scoped ? 'block' : 'none';
+    if (scoped) $('scopeBlur').style.setProperty('--sr', kind === 'scope' ? 46 : 40);
     $('sightCv').style.opacity = collim ? 1 : 0;
     if (scoped && this.frame % 6 === 0) $('scopeInfo').textContent = `${this.zoom}X${this.zoom >= 3 ? '  ·  호흡 정지 [Shift] ' + Math.round(this.breath * 100) + '%' : ''}`;
     if (this.vmGun) this.vmGun.grp.visible = !scoped;

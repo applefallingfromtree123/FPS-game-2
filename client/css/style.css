@@ -292,3 +292,7 @@ button.primary:hover { background: #8fdcff; filter: none; }
 .ntag { position: absolute; left: 0; top: 0; font: 700 13px Rajdhani, 'Noto Sans KR', sans-serif; letter-spacing: 0.5px; padding: 1px 6px; text-shadow: 0 1px 3px #000, 0 0 2px #000; white-space: nowrap; will-change: transform; }
 .ntag.fr { color: #7fd0ff; }
 .ntag.en { color: #ff7a6e; }
+
+/* outside of a magnified lens: blurred, dimmed surroundings (ring-shaped mask leaves the lens clear) */
+#scopeBlur { position: absolute; inset: 0; pointer-events: none; -webkit-backdrop-filter: blur(7px) brightness(0.72); backdrop-filter: blur(7px) brightness(0.72);
+  -webkit-mask-image: radial-gradient(circle at 50% 50%, transparent calc(var(--sr, 46) * 1vmin + 2px), #000 calc(var(--sr, 46) * 1vmin + 22px)); mask-image: radial-gradient(circle at 50% 50%, transparent calc(var(--sr, 46) * 1vmin + 2px), #000 calc(var(--sr, 46) * 1vmin + 22px)); }

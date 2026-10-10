@@ -43,11 +43,17 @@ export function drawScope(cv, kind, zoom) {
   const cx = w / 2, cy = h / 2;
   const R = m * (kind === 'scope' ? 0.46 : 0.40);
 
-  // outside the lens: translucent dark tube with a soft inner edge
-  g.fillStyle = 'rgba(0,0,0,0.62)';   // translucent: the surroundings stay visible around the lens
+  // outside the lens: the surroundings stay visible (blurred by the #scopeBlur CSS layer); a thick scope-tube ring frames the lens
+  g.fillStyle = 'rgba(0,0,0,0.22)';
   g.beginPath(); g.rect(0, 0, w, h); g.arc(cx, cy, R, 0, TAU, true); g.fill('evenodd');
-  const edge = g.createRadialGradient(cx, cy, R * 0.82, cx, cy, R);
-  edge.addColorStop(0, 'rgba(0,0,0,0)'); edge.addColorStop(0.75, 'rgba(0,0,0,0.35)'); edge.addColorStop(1, 'rgba(0,0,0,0.8)');
+  const rim = R * 0.085;
+  g.lineWidth = rim; g.strokeStyle = '#08090a'; g.beginPath(); g.arc(cx, cy, R + rim / 2 - 1 * dpr, 0, TAU); g.stroke();
+  g.lineWidth = 2 * dpr; g.strokeStyle = 'rgba(150,165,180,0.28)'; g.beginPath(); g.arc(cx, cy, R + rim - 1 * dpr, 0, TAU); g.stroke();
+  const hl = g.createLinearGradient(cx - R, cy - R, cx + R, cy + R);
+  hl.addColorStop(0, 'rgba(200,215,230,0.35)'); hl.addColorStop(0.35, 'rgba(200,215,230,0)'); hl.addColorStop(1, 'rgba(0,0,0,0)');
+  g.lineWidth = rim * 0.35; g.strokeStyle = hl; g.beginPath(); g.arc(cx, cy, R + rim * 0.5, Math.PI * 0.95, Math.PI * 1.6); g.stroke();
+  const edge = g.createRadialGradient(cx, cy, R * 0.86, cx, cy, R);
+  edge.addColorStop(0, 'rgba(0,0,0,0)'); edge.addColorStop(0.8, 'rgba(0,0,0,0.25)'); edge.addColorStop(1, 'rgba(0,0,0,0.7)');
   g.fillStyle = edge; g.beginPath(); g.arc(cx, cy, R, 0, TAU); g.fill();
   // glass rim + faint lens tint / glint
   g.strokeStyle = 'rgba(120,150,170,0.35)'; g.lineWidth = 3 * dpr; g.beginPath(); g.arc(cx, cy, R - 1.5 * dpr, 0, TAU); g.stroke();
