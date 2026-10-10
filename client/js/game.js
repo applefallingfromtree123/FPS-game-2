@@ -397,7 +397,7 @@ export class Game {
   switchSlot(s) {
     if (s === this.slot) return;
     if (s === 2 && !this.gadgetKind()) return;
-    if (s === 0 && this.slotWeaponId(0) < 0) return;
+    if (s === 0 && this.slotWeaponId(0) < 0) { if (this.mode.br) this.hud.notice('주무기 없음', '보급 상자(주황색)에 다가가면 무기를 얻습니다', '#ffcf7a'); return; }
     this.slot = s; this.reloadUntil = 0; this.switchUntil = performance.now() + 450; this.burstLeft = 0;
     this.buildViewmodel();
   }
@@ -723,7 +723,16 @@ export class Game {
     let prompt = '';
     const nv = this.nearestVehicle();
     if (nv) prompt = `[E] 탑승 — ${VEHICLES[nv.type].label}`;
-    else if (this.lootMeshes) for (const [, m] of this.lootMeshes) if (Math.hypot(m.position.x - this.pos.x, m.position.z - this.pos.z) < 3) { prompt = '[E] 보급 상자 열기'; break; }
+    else if (this.lootMeshes) {
+      for (const [i, m] of this.lootMeshes) {
+        if (Math.hypot(m.position.x - this.pos.x, m.position.z - this.pos.z) < 3 && Math.abs(m.position.y - this.pos.y) < 3) {
+          prompt = '보급 상자 여는 중…';
+          // opens automatically when you walk up to it (no key needed, works on touch too)
+          if (this.me.alive && !this.para && performance.now() - (this._lootTry || 0) > 700) { this._lootTry = performance.now(); this.net.send({ t: 'loot', i }); }
+          break;
+        }
+      }
+    }
     $('interact').style.display = prompt ? 'block' : 'none';
     $('interact').textContent = prompt;
   }
