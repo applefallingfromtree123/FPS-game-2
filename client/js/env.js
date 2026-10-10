@@ -6,6 +6,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { makeNoise2D, fbm, Rng, smoothstep, clamp } from '/shared/rng.js';
 import { distToSeg } from '/shared/world.js';
 import * as TX from './textures.js';
+import { buildTree, buildBush, buildRock, leafTexture, needleTexture, barkTexture } from './foliage.js';
 
 export const QUALITY = [
   { name: 'low',    pixelRatio: 0.75, shadow: 1024, grass: 40000,  grassR: 40, treeNear: 160, treeFar: 700,  terrainStep: 2, bloom: false, msaa: 0, far: 1600 },
@@ -307,78 +308,7 @@ export class Environment {
   }
 
   // ------------------------------------------------------------ trees
-  makeTreeGeos(type) {
-    const r = new Rng(type.length * 97);
-    const parts = [];
-    const add = (g, color, jitter = 0) => {
-      g = g.toNonIndexed();
-      const p = g.attributes.position;
-      if (jitter) for (let i = 0; i < p.count; i++) p.setXYZ(i, p.getX(i) + r.float(-jitter, jitter), p.getY(i) + r.float(-jitter, jitter), p.getZ(i) + r.float(-jitter, jitter));
-      const c = new Float32Array(p.count * 3);
-      for (let i = 0; i < p.count; i++) { const v = 0.85 + r.next() * 0.3; c[i * 3] = color.r * v; c[i * 3 + 1] = color.g * v; c[i * 3 + 2] = color.b * v; }
-      g.setAttribute('color', new THREE.BufferAttribute(c, 3));
-      g.deleteAttribute('uv');
-      g.computeVertexNormals();
-      parts.push(g);
-    };
-    const bark = new THREE.Color(0.25, 0.18, 0.12);
-    const leaf = col(this.biome.foliage);
-    const lo = [];
-    if (type === 'pine' || type === 'snowpine') {
-      add(new THREE.CylinderGeometry(0.12, 0.3, 9, 6).translate(0, 4.5, 0), bark);
-      for (let k = 0; k < 5; k++) {
-        const y = 2.5 + k * 1.6, rad = 2.6 - k * 0.45;
-        add(new THREE.ConeGeometry(rad, 2.8, 8, 1).translate(0, y + 1.2, 0), leaf.clone().multiplyScalar(0.8 + k * 0.06), 0.18);
-        if (type === 'snowpine') add(new THREE.ConeGeometry(rad * 0.85, 1.0, 8, 1).translate(0, y + 2.2, 0), new THREE.Color(0.92, 0.94, 0.97), 0.1);
-      }
-      lo.push(new THREE.ConeGeometry(2.6, 10, 6).translate(0, 6, 0));
-    } else if (type === 'oak' || type === 'jungle' || type === 'birch') {
-      const bc = type === 'birch' ? new THREE.Color(0.8, 0.78, 0.72) : bark;
-      add(new THREE.CylinderGeometry(0.22, 0.38, 5, 7).translate(0, 2.5, 0), bc);
-      add(new THREE.CylinderGeometry(0.08, 0.15, 2.5, 5).rotateZ(0.7).translate(0.8, 4.2, 0), bc);
-      add(new THREE.CylinderGeometry(0.08, 0.15, 2.5, 5).rotateZ(-0.6).translate(-0.7, 4.4, 0.2), bc);
-      const blobs = type === 'jungle' ? 7 : 6;
-      for (let k = 0; k < blobs; k++) {
-        const g = new THREE.IcosahedronGeometry(r.float(1.4, 2.2), 1);
-        g.translate(r.float(-1.6, 1.6), r.float(5, 7.5) + (type === 'jungle' ? 2 : 0), r.float(-1.6, 1.6));
-        add(g, leaf.clone().multiplyScalar(r.float(0.75, 1.1)), 0.25);
-      }
-      lo.push(new THREE.IcosahedronGeometry(3.2, 0).translate(0, 6.5, 0));
-    } else if (type === 'palm') {
-      let x = 0, y = 0;
-      for (let k = 0; k < 6; k++) { const g = new THREE.CylinderGeometry(0.18, 0.24, 1.6, 6); g.rotateZ(-0.06 * k).translate(x, y + 0.8, 0); add(g, new THREE.Color(0.42, 0.33, 0.22)); x += 0.08 * k; y += 1.55; }
-      for (let k = 0; k < 8; k++) {
-        const g = new THREE.PlaneGeometry(0.9, 4.2, 1, 4);
-        const p = g.attributes.position;
-        for (let i = 0; i < p.count; i++) { const t = (p.getY(i) + 2.1) / 4.2; p.setZ(i, -t * t * 1.6); }
-        g.translate(0, 2.1, 0).rotateX(-1.1).rotateY((k / 8) * Math.PI * 2).translate(x, y, 0);
-        add(g, leaf.clone().multiplyScalar(1.1));
-      }
-      lo.push(new THREE.ConeGeometry(2.5, 3, 5).translate(0.5, 9, 0));
-    } else if (type === 'acacia') {
-      add(new THREE.CylinderGeometry(0.15, 0.3, 4.5, 6).rotateZ(0.15).translate(0, 2.2, 0), bark);
-      for (let k = 0; k < 4; k++) add(new THREE.SphereGeometry(r.float(2, 2.8), 8, 4).scale(1, 0.32, 1).translate(r.float(-1.5, 1.5), 4.8 + r.float(0, 0.5), r.float(-1.5, 1.5)), leaf, 0.15);
-      lo.push(new THREE.SphereGeometry(3.6, 6, 3).scale(1, 0.35, 1).translate(0, 5, 0));
-    } else {
-      add(new THREE.CylinderGeometry(0.12, 0.32, 6, 6).translate(0, 3, 0), new THREE.Color(0.2, 0.17, 0.15));
-      for (let k = 0; k < 5; k++) add(new THREE.CylinderGeometry(0.03, 0.09, 2.4, 4).rotateZ(r.float(0.5, 1.1) * (k % 2 ? 1 : -1)).rotateY(r.float(0, 6)).translate(0, r.float(2.5, 5.5), 0), new THREE.Color(0.2, 0.17, 0.15));
-      lo.push(new THREE.CylinderGeometry(0.1, 0.3, 6, 4).translate(0, 3, 0));
-    }
-    const hi = mergeGeometries(parts);
-    const loG = lo[0].toNonIndexed();
-    const lc = new Float32Array(loG.attributes.position.count * 3);
-    const lcCol = type === 'dead' ? new THREE.Color(0.2, 0.17, 0.15) : type === 'snowpine' ? leaf.clone().lerp(new THREE.Color(0.9, 0.92, 0.95), 0.35) : leaf;
-    for (let i = 0; i < lc.length; i += 3) { lc[i] = lcCol.r; lc[i + 1] = lcCol.g; lc[i + 2] = lcCol.b; }
-    loG.setAttribute('color', new THREE.BufferAttribute(lc, 3));
-    loG.deleteAttribute('uv'); loG.computeVertexNormals();
-    return { hi, lo: loG };
-  }
-
-  buildTrees() {
-    const w = this.world;
-    const types = [...new Set(w.trees.map((t) => t.type))];
-    this.treeSets = [];
-    const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0, side: THREE.DoubleSide });
+  _windPatch(mat, sway = 0.012, keepNormal = false) {
     mat.onBeforeCompile = (sh) => {
       sh.uniforms.uTime = this.uniforms.uTime;
       sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uTime;')
@@ -388,23 +318,87 @@ export class Environment {
           #else
             vec3 ip = vec3(0.0);
           #endif
-          float sway = max(0.0, position.y - 2.0) * 0.012 * sin(uTime * 1.3 + ip.x * 0.05 + ip.z * 0.07);
-          transformed.x += sway; transformed.z += sway * 0.6;`);
+          float sw = max(0.0, position.y - 1.5) * ${sway.toFixed(4)} * (sin(uTime * 1.3 + ip.x * 0.05 + ip.z * 0.07) + 0.35 * sin(uTime * 3.1 + position.x * 2.0 + ip.x));
+          transformed.x += sw; transformed.z += sw * 0.6;`);
+      if (keepNormal) {
+        // leaf cards carry hand-made volumetric normals: do not flip them on back faces
+        sh.fragmentShader = sh.fragmentShader.replace('#include <normal_fragment_begin>', THREE.ShaderChunk.normal_fragment_begin.replace('normal *= faceDirection;', ''));
+      }
     };
-    this.treeMat = mat;
+  }
+
+  buildTrees() {
+    const w = this.world;
+    const types = [...new Set(w.trees.map((t) => t.type))];
+    this.treeSets = [];
+    const leafTex = leafTexture(), needleTex = needleTexture();
+    const lo = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0 });
+    this._windPatch(lo, 0.008);
+    const bark = new THREE.MeshStandardMaterial({ map: barkTexture(), vertexColors: true, roughness: 0.95, side: THREE.DoubleSide });
+    this._windPatch(bark, 0.004);
+    const foliage = col(this.biome.foliage);
+    const broad = new THREE.MeshStandardMaterial({ map: leafTex, alphaTest: 0.5, vertexColors: true, side: THREE.DoubleSide, roughness: 0.8, emissive: foliage.clone().multiplyScalar(0.05) });
+    const needle = new THREE.MeshStandardMaterial({ map: needleTex, alphaTest: 0.45, vertexColors: true, side: THREE.DoubleSide, roughness: 0.85, emissive: foliage.clone().multiplyScalar(0.04) });
+    this._windPatch(broad, 0.016, true); this._windPatch(needle, 0.012, true);
+    this.leafMats = { broad, needle };
     for (const type of types) {
       const list = w.trees.filter((t) => t.type === type);
-      const g = this.makeTreeGeos(type);
-      const hi = new THREE.InstancedMesh(g.hi, mat, Math.min(list.length, 6000));
-      const lo = new THREE.InstancedMesh(g.lo, mat, list.length);
-      hi.castShadow = true; hi.receiveShadow = true;
-      hi.count = 0; lo.count = 0;
-      hi.frustumCulled = false; lo.frustumCulled = false;
-      this.group.add(hi, lo);
-      const mats = list.map((t) => new THREE.Matrix4().compose(new THREE.Vector3(t.x, t.y - 0.2, t.z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), t.rot), new THREE.Vector3(t.s, t.s * (0.9 + (t.rot % 0.3)), t.s)));
-      this.treeSets.push({ list, hi, lo, mats });
+      const parts = buildTree(type, this.biome.foliage);
+      const cap = Math.min(list.length, 3500);
+      const mk = (geo, mat, n, shadow) => { const m = new THREE.InstancedMesh(geo, mat, n); m.castShadow = shadow; m.receiveShadow = true; m.count = 0; m.frustumCulled = false; this.group.add(m); return m; };
+      const set = {
+        list,
+        bark: parts.bark ? mk(parts.bark, bark, cap, true) : null,
+        leaf: parts.leaf ? mk(parts.leaf, parts.needles ? needle : broad, cap, true) : null,
+        lo: mk(parts.lo, lo, list.length, false),
+        mats: list.map((t) => new THREE.Matrix4().compose(new THREE.Vector3(t.x, t.y - 0.2, t.z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), t.rot), new THREE.Vector3(t.s, t.s * (0.9 + (t.rot % 0.3)), t.s))),
+        cap,
+      };
+      this.treeSets.push(set);
     }
     this.lastTreeUpdate = new THREE.Vector3(1e9, 0, 1e9);
+    this.buildClutter(broad);
+  }
+
+  // shrubs and small rocks scattered over the terrain (purely visual, no collision)
+  buildClutter(broadMat) {
+    const w = this.world, b = this.biome;
+    const r = new Rng(w.map.seed ^ 0xc1a7);
+    this.clutter = [];
+    const place = (count, accept) => {
+      const out = [];
+      for (let tries = 0; out.length < count && tries < count * 6; tries++) {
+        const x = r.float(-w.half, w.half), z = r.float(-w.half, w.half);
+        const y = w.heightAt(x, z);
+        if (y < w.waterLevel + 0.35) continue;
+        if (w.pointInBuilding(x, z, 1.5)) continue;
+        let onRoad = false;
+        for (const rd of w.roads) if (distToSeg(x, z, rd.ax, rd.az, rd.bx, rd.bz) < rd.w * 0.5 + 1.2) { onRoad = true; break; }
+        if (onRoad) continue;
+        const slope = w.slopeAt(x, z);
+        if (!accept(slope, x, z)) continue;
+        out.push({ x, y, z, slope });
+      }
+      return out;
+    };
+    const scale = (w.size / 2000) ** 2;
+    const mkSet = (geo, mat, spots, near, scaleFn, cast) => {
+      const m = new THREE.InstancedMesh(geo, mat, spots.length);
+      m.castShadow = cast; m.receiveShadow = true; m.count = 0; m.frustumCulled = false;
+      this.group.add(m);
+      const q = new THREE.Quaternion(), e = new THREE.Euler();
+      const mats = spots.map((s) => { e.set(r.float(-0.2, 0.2), r.float(0, 6.28), r.float(-0.2, 0.2)); q.setFromEuler(e); const k = scaleFn(); return new THREE.Matrix4().compose(new THREE.Vector3(s.x, s.y - 0.05 * k.y, s.z), q, k); });
+      this.clutter.push({ mesh: m, spots, mats, near2: near * near });
+    };
+    const bushy = b.grassDensity > 0.25 && !b.snow;
+    if (bushy) {
+      const spots = place(Math.floor(2600 * Math.min(1.5, b.grassDensity * 0.7 + 0.3) * scale), (slope) => slope < 0.45);
+      mkSet(buildBush(b.foliage), broadMat, spots, this.q.treeNear * 0.55, () => { const k = r.float(0.8, 1.7); return new THREE.Vector3(k, k * r.float(0.8, 1.2), k); }, false);
+    }
+    const rockN = Math.floor((b.snow ? 2200 : b.relief > 100 ? 4200 : 3000) * scale);
+    const rockSpots = place(rockN, (slope, x, z) => slope > 0.12 || r.next() < 0.35);
+    const rockMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, flatShading: false });
+    mkSet(buildRock(b.rock), rockMat, rockSpots, this.q.treeNear * 0.5, () => { const k = r.float(0.25, 0.95); return new THREE.Vector3(k * r.float(0.8, 1.5), k * r.float(0.7, 1.2), k * r.float(0.8, 1.5)); }, true);
   }
 
   updateTrees(cam) {
@@ -413,15 +407,22 @@ export class Environment {
     const near2 = this.q.treeNear ** 2, far2 = this.q.treeFar ** 2;
     for (const s of this.treeSets) {
       let h = 0, l = 0;
-      const maxHi = s.hi.instanceMatrix.count;
       for (let i = 0; i < s.list.length; i++) {
         const t = s.list[i];
         const d2 = (t.x - cam.x) ** 2 + (t.z - cam.z) ** 2;
-        if (d2 < near2 && h < maxHi) s.hi.setMatrixAt(h++, s.mats[i]);
+        if (d2 < near2 && h < s.cap) { if (s.bark) s.bark.setMatrixAt(h, s.mats[i]); if (s.leaf) s.leaf.setMatrixAt(h, s.mats[i]); h++; }
         else if (d2 < far2) s.lo.setMatrixAt(l++, s.mats[i]);
       }
-      s.hi.count = h; s.lo.count = l;
-      s.hi.instanceMatrix.needsUpdate = true; s.lo.instanceMatrix.needsUpdate = true;
+      for (const m of [s.bark, s.leaf]) if (m) { m.count = h; m.instanceMatrix.needsUpdate = true; }
+      s.lo.count = l; s.lo.instanceMatrix.needsUpdate = true;
+    }
+    for (const c of this.clutter) {
+      let n = 0;
+      for (let i = 0; i < c.spots.length; i++) {
+        const t = c.spots[i];
+        if ((t.x - cam.x) ** 2 + (t.z - cam.z) ** 2 < c.near2) c.mesh.setMatrixAt(n++, c.mats[i]);
+      }
+      c.mesh.count = n; c.mesh.instanceMatrix.needsUpdate = true;
     }
   }
 
@@ -429,10 +430,15 @@ export class Environment {
   buildBuildings() {
     const w = this.world;
     const groups = { wall: [], wall2: [], roof: [], flatroof: [], metal: [], sandbag: [], concrete: [], crate: [], container: [] };
-    const tint = (g, c) => {
+    const tint = (g, c, baseY = null) => {
       const p = g.attributes.position.count;
       const a = new Float32Array(p * 3);
-      for (let i = 0; i < p; i++) { a[i * 3] = c.r; a[i * 3 + 1] = c.g; a[i * 3 + 2] = c.b; }
+      const pos = g.attributes.position;
+      for (let i = 0; i < p; i++) {
+        // baked ambient occlusion: walls darken toward the ground
+        const ao = baseY === null ? 1 : 0.7 + 0.3 * Math.min(1, Math.max(0, (pos.getY(i) - baseY) / 3.2));
+        a[i * 3] = c.r * ao; a[i * 3 + 1] = c.g * ao; a[i * 3 + 2] = c.b * ao;
+      }
       g.setAttribute('color', new THREE.BufferAttribute(a, 3));
       return g;
     };
@@ -453,7 +459,7 @@ export class Environment {
         const g = boxUV(b.w, b.h, b.d, b.type === 'container' ? 2.4 : 1.5, b.type === 'container' ? 2.6 : 1.1);
         if (b.type === 'container') g.rotateY(0);
         g.translate(b.x, b.y + b.h / 2, b.z);
-        groups[b.type === 'sandbag' ? 'sandbag' : b.type === 'container' ? 'container' : b.type === 'crate' ? 'crate' : 'concrete'].push(tint(g, b.type === 'container' ? c : new THREE.Color(1, 1, 1)));
+        groups[b.type === 'sandbag' ? 'sandbag' : b.type === 'container' ? 'container' : b.type === 'crate' ? 'crate' : 'concrete'].push(tint(g, b.type === 'container' ? c : new THREE.Color(1, 1, 1), b.y));
         continue;
       }
       const H = b.h;
@@ -463,7 +469,7 @@ export class Environment {
       for (let i = 0; i < uv.count; i++) if (Math.abs(n.getY(i)) > 0.5) uv.setXY(i, 0.02, 0.02);
       g.translate(b.x, b.y + H / 2, b.z);
       const target = b.type === 'warehouse' || b.type === 'bunker' ? 'metal' : (b.type === 'apartment' ? 'wall2' : 'wall');
-      groups[target].push(tint(g, c));
+      groups[target].push(tint(g, c, b.y));
       // base/plinth
       const plinth = new THREE.BoxGeometry(b.w + 0.3, 0.8, b.d + 0.3).translate(b.x, b.y + 0.2, b.z);
       groups.concrete.push(tint(plinth, new THREE.Color(0.75, 0.75, 0.75)));

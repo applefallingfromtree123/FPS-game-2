@@ -25,6 +25,13 @@ npm start          # http://localhost:3000
 npm test           # 헤드리스로 모든 모드의 100인 봇 매치를 시뮬레이션해 검증
 ```
 
+## 계정 · 랭킹
+
+- 메뉴 왼쪽에서 **로그인 / 계정 만들기** (이름 3~16자, 비밀번호 6자 이상). 비밀번호는 scrypt로 해시되어 저장되고, 로그인은 30일짜리 토큰으로 유지됩니다. 로그인 없이 게스트로도 플레이할 수 있습니다.
+- 매치가 끝나면(또는 도중에 나가면) 킬·데스·헤드샷·점수·승리가 계정에 저장되고, XP와 레벨(이등병 → 장군)이 오릅니다. **랭킹** 탭에서 경험치 / 킬 / 승리 / K·D / 헤드샷 순위를 볼 수 있습니다.
+- **저장소**: 기본은 `DATA_DIR`(기본 `./data`)의 JSON 파일입니다. Render 무료·Koyeb·Northflank처럼 디스크가 임시인 호스트에서는 재배포나 재시작 때 계정이 사라집니다. 이 경우 무료 [Upstash Redis](https://upstash.com)를 만들고 환경변수 `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`을 설정하면 그쪽에 저장됩니다(요청 크기 1MB 이내 = 수천 계정 규모). VM(Oracle 등)에서는 디스크가 유지되므로 그대로 써도 됩니다.
+- API: `POST /api/register`, `POST /api/login`, `POST /api/logout`, `GET /api/me`, `GET /api/leaderboard?by=xp|kills|wins|kd|headshots`
+
 ## 무료로 서버 올리기
 
 게임 서버는 **웹소켓을 계속 열어 두는 상시 실행 프로세스**라서, Vercel·Netlify 같은 정적/서버리스 호스팅에서는 돌아가지 않습니다. 저장소에 `Dockerfile`이 있어 아래 어디든 같은 방식으로 올라갑니다.

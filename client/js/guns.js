@@ -91,7 +91,6 @@ export function buildGun(w, opts = {}) {
   else { g.add(cyl(barR * 1.4, barR * 1.4, 0.05, m.metal, 0, 0, muzzleZ - 0.025)); muzzleZ -= 0.05; }
   // front sight post / gas block
   g.add(box(0.016, 0.03, 0.02, m.metal, 0, 0.02, barStart + 0.03));
-  if (sight === 'iron') g.add(box(0.004, 0.022, 0.004, m.metal, 0, 0.048, barStart + 0.03));
   // pistol grip
   const gripZ = bullpup ? -recLen * 0.15 : recLen * 0.18;
   const grip = box(0.03, 0.1, 0.045, body, 0, -recH / 2 - 0.045, gripZ); grip.rotation.x = 0.3; g.add(grip);
@@ -165,8 +164,13 @@ export function buildGun(w, opts = {}) {
     g.add(new THREE.Mesh(new THREE.CircleGeometry(0.03, 16), m.glass).translateY(top + 0.042).translateZ(sz - 0.2));
     sightY = top + 0.042;
   } else {
-    g.add(box(0.022, 0.018, 0.012, m.metal, 0, recH / 2 + 0.02, recLen / 2 - 0.03)); // rear aperture
-    sightY = recH / 2 + 0.03;
+    // iron sights: ghost-ring rear aperture + front post, both centred on the same sight line
+    const lineY = recH / 2 + 0.036;
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.0105, 0.0032, 6, 18), m.metal); ring.position.set(0, lineY, recLen / 2 - 0.035); g.add(ring);
+    g.add(box(0.022, lineY - recH / 2 - 0.012, 0.012, m.metal, 0, (lineY + recH / 2) / 2 - 0.006, recLen / 2 - 0.035)); // rear base
+    g.add(box(0.0035, 0.022, 0.0035, m.metal, 0, lineY, barStart + 0.03)); // front post
+    g.add(box(0.008, lineY - 0.011 - 0.03, 0.008, m.metal, 0, (lineY - 0.011 + 0.03) / 2, barStart + 0.03)); // post stalk
+    sightY = lineY;
   }
   const muzzle = new THREE.Object3D(); muzzle.position.set(0, 0, muzzleZ); g.add(muzzle);
   return finish(g, { muzzle, sightY, mag, length: recLen + barLen, fp, eject: new THREE.Vector3(recW / 2, 0.02, -0.02) });

@@ -7,6 +7,8 @@ import { MAPS, BIOMES } from '/shared/maps.js';
 import { WEAPONS, CATEGORIES, CLASSES, SIGHTS, MUZZLES, weaponsFor, defaultLoadout, sanitizeLoadout } from '/shared/weapons.js';
 import { buildMapImage, escapeHtml } from './hud.js';
 import { initTouch, isTouchDevice, applyTouchMode } from './touch.js';
+import { progress } from '/shared/ranks.js';
+import { playIntro } from './intro.js';
 
 const $ = (id) => document.getElementById(id);
 const store = {
@@ -34,8 +36,13 @@ function buildMenu() {
       for (const x of document.querySelectorAll('.menu-nav button')) x.classList.toggle('active', x === b);
       for (const t of document.querySelectorAll('.tab')) t.classList.toggle('active', t.id === 'tab-' + b.dataset.tab);
       if (b.dataset.tab === 'loadout') renderLoadout($('loadoutEditor'));
+      if (b.dataset.tab === 'rank') loadRank('xp');
     });
   }
+  $('authTabLogin').onclick = () => openAuth('login'); $('authTabReg').onclick = () => openAuth('reg');
+  $('authSubmit').onclick = submitAuth; $('authCancel').onclick = () => $('authModal').classList.remove('open');
+  for (const id of ['authName', 'authPass']) $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') submitAuth(); });
+  for (const b of $('rankTabs').children) b.onclick = () => loadRank(b.dataset.by);
   const modes = $('modes');
   const GROUPS = [['large', '대규모 전투'], ['small', '소규모 보병전'], ['special', '특수 모드']];
   modes.innerHTML = GROUPS.map(([g, label]) => `<div class="grp">${label}</div>` + Object.values(MODES).filter((m) => m.group === g).map((m) => `<div class="mode-card ${m.br ? 'redsec' : ''}" data-mode="${m.id}"><div class="cap">${m.maxPlayers}명</div><div class="en">${m.en}</div><div class="ko">${m.name}</div><div class="desc">${m.desc}</div></div>`).join('')).join('');
@@ -138,9 +145,71 @@ function renderLoadout(el, compact = false) {
   draw();
 }
 
+
+// ---------------------------------------------------------------- account & ranking
+const account = { token: store.get('token', null), profile: null };
+let authMode = 'login';
+const api = async (path, opts = {}) => {
+  const r = await fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', ...(account.token ? { Authorization: 'Bearer ' + account.token } : {}), ...(opts.headers || {}) } });
+  let j = {}; try { j = await r.json(); } catch {}
+  if (!r.ok) throw new Error(j.error || '요청에 실패했습니다.');
+  return j;
+};
+function renderAccount() {
+  const el = $('account');
+  const p = account.profile;
+  $('guestName').style.display = p ? 'none' : '';
+  if (!p) {
+    el.innerHTML = `<div class="acc-card"><div class="acc-name">게스트</div><div class="acc-rank">로그인하면 기록과 랭킹이 저장됩니다</div><div class="acc-btns"><button id="accLogin" class="primary">로그인 / 가입</button></div></div>`;
+    $('accLogin').onclick = () => openAuth('login');
+    return;
+  }
+  const pr = progress(p.xp);
+  el.innerHTML = `<div class="acc-card"><div class="acc-name">${escapeHtml(p.name)}</div><div class="acc-rank">Lv.${pr.level} · ${pr.ko} <span style="opacity:.6">${pr.en}</span></div>
+    <div class="acc-bar"><i style="width:${Math.min(100, (pr.into / pr.need) * 100)}%"></i></div>
+    <div class="acc-sub"><span>${p.xp.toLocaleString()} XP</span><span>K/D ${p.kd} · ${p.wins}승</span></div>
+    <div class="acc-btns"><button id="accRank">내 랭킹</button><button id="accOut">로그아웃</button></div></div>`;
+  $('accRank').onclick = () => { for (const b of document.querySelectorAll('.menu-nav button')) if (b.dataset.tab === 'rank') b.click(); };
+  $('accOut').onclick = async () => { try { await api('/api/logout', { method: 'POST' }); } catch {} account.token = null; account.profile = null; store.set('token', null); net.send({ t: 'auth', token: null }); renderAccount(); };
+}
+function openAuth(mode) {
+  authMode = mode; $('authErr').textContent = '';
+  $('authTabLogin').classList.toggle('sel', mode === 'login'); $('authTabReg').classList.toggle('sel', mode === 'reg');
+  $('authSubmit').textContent = mode === 'login' ? '로그인' : '계정 만들기';
+  $('authPass').autocomplete = mode === 'login' ? 'current-password' : 'new-password';
+  $('authModal').classList.add('open'); setTimeout(() => $('authName').focus(), 50);
+}
+async function submitAuth() {
+  $('authErr').textContent = '';
+  $('authSubmit').disabled = true;
+  try {
+    const j = await api(authMode === 'login' ? '/api/login' : '/api/register', { method: 'POST', body: JSON.stringify({ name: $('authName').value.trim(), password: $('authPass').value }) });
+    account.token = j.token; account.profile = j.profile; store.set('token', j.token);
+    net.send({ t: 'auth', token: j.token });
+    $('authModal').classList.remove('open'); $('authPass').value = '';
+    renderAccount();
+  } catch (e) { $('authErr').textContent = e.message; }
+  $('authSubmit').disabled = false;
+}
+async function loadRank(by = 'xp') {
+  const box = $('rankTable');
+  box.textContent = '불러오는 중…';
+  for (const b of $('rankTabs').children) b.classList.toggle('sel', b.dataset.by === by);
+  try {
+    const j = await api('/api/leaderboard?by=' + by + '&limit=100');
+    const me = account.profile && account.profile.name.toLowerCase();
+    const col = { xp: ['XP', (r) => r.xp.toLocaleString()], kills: ['킬', (r) => r.kills.toLocaleString()], wins: ['승리', (r) => r.wins], kd: ['K/D', (r) => r.kd], headshots: ['헤드샷', (r) => r.headshots] }[by];
+    box.innerHTML = j.rows.length ? `<table><tr><th>#</th><th>이름</th><th>레벨</th><th>${col[0]}</th><th>경기</th><th>킬</th><th>승</th></tr>${j.rows.map((r) => `<tr class="${r.name.toLowerCase() === me ? 'me' : ''} ${r.rank <= 3 ? 'top' + r.rank : ''}"><td>${r.rank}</td><td>${escapeHtml(r.name)}<span class="rank-badge">${r.ko}</span></td><td>${r.level}</td><td>${col[1](r)}</td><td>${r.matches}</td><td>${r.kills}</td><td>${r.wins}</td></tr>`).join('')}</table>`
+      : '<p class="hint">아직 기록이 없습니다. 로그인하고 매치를 플레이해 첫 랭커가 되어 보세요!</p>';
+    $('rankNote').textContent = '로그인해야 기록이 쌓입니다. K/D 랭킹은 3경기·20킬 이상부터 집계됩니다.' + (j.backend === 'file' ? ' (서버가 파일 저장소를 사용 중입니다. 임시 디스크 서버에서는 재배포 시 기록이 지워질 수 있습니다.)' : '');
+    if (j.me && j.me.rank) box.insertAdjacentHTML('afterbegin', `<p class="hint" style="margin:0 0 8px">내 순위: <b style="color:#fff">${j.me.rank}위</b> (${escapeHtml(j.me.profile.name)})</p>`);
+  } catch (e) { box.textContent = e.message; }
+}
+
 // ---------------------------------------------------------------- lobby & match
-const CLIENT_BUILD = 'touch-5';
-net.on('welcome', (m) => { $('online').textContent = `● 서버 온라인 · 접속자 ${m.online}명 · 서버 ${m.build} · 화면 ${CLIENT_BUILD}${document.body.classList.contains('touch') ? ' · 터치 조작 켜짐' : ''}`; net.send({ t: 'hello', name: $('name').value }); });
+const CLIENT_BUILD = 'acct-1';
+net.on('welcome', (m) => {
+  if (account.token) net.send({ t: 'auth', token: account.token }); $('online').textContent = `● 서버 온라인 · 접속자 ${m.online}명 · 서버 ${m.build} · 화면 ${CLIENT_BUILD}${document.body.classList.contains('touch') ? ' · 터치 조작 켜짐' : ''}`; net.send({ t: 'hello', name: $('name').value }); });
 net.on('close', () => { $('online').textContent = '서버 연결 끊김 — 재연결 중…'; });
 net.on('lobby', (m) => {
   if (game) return;
@@ -155,6 +224,21 @@ net.on('lobby', (m) => {
   } else {
     $('lobbyTimer').textContent = '추가 플레이어 대기 중…';
     $('btnStartNow').style.display = m.humans === 1 ? '' : 'none';
+  }
+});
+
+net.on('auth', (m) => {
+  if (m.ok) { account.profile = m.profile; } else if (account.token) { account.token = null; account.profile = null; store.set('token', null); }
+  renderAccount();
+});
+net.on('profile', (m) => {
+  account.profile = m.profile; renderAccount();
+  const box = $('endScreen');
+  if (game && game.ended && box && box.style.display === 'block') {
+    const pr = progress(m.profile.xp);
+    const line = `<div class="gain">+${m.gained} XP · Lv.${pr.level} ${pr.ko}${m.leveledUp ? ' · 레벨 업!' : ''}</div>`;
+    const btn = box.querySelector('#btnEndMenu');
+    if (btn) btn.insertAdjacentHTML('beforebegin', line); else box.insertAdjacentHTML('beforeend', line);
   }
 });
 
@@ -267,7 +351,10 @@ document.addEventListener('keydown', (e) => {
 
 window.addEventListener('error', (e) => reportError('error', e.error || e.message));
 window.addEventListener('unhandledrejection', (e) => reportError('promise', e.reason));
+playIntro(audio);
 buildMenu();
+renderAccount();
+if (account.token) api('/api/me').then((j) => { account.profile = j.profile; renderAccount(); }).catch(() => { account.token = null; store.set('token', null); renderAccount(); });
 initTouch(() => game, () => settings.touch);
 net.connect();
 show('menu');

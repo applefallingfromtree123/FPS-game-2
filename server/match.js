@@ -162,7 +162,7 @@ export class Match {
       id, name, client, isBot, team: 0, squad: 0, loadout: null,
       x: 0, y: 0, z: 0, yaw: 0, pitch: 0, stance: 0, ads: false, slot: 0, weaponId: 0,
       hp: 100, alive: false, deadAt: -1e9, lastDamageAt: -1e9, lastDamager: -1, vehicle: -1,
-      kills: 0, deaths: 0, score: 0, caps: 0, spottedUntil: 0, firingUntil: 0, para: 0,
+      kills: 0, deaths: 0, headshots: 0, score: 0, caps: 0, spottedUntil: 0, firingUntil: 0, para: 0,
       lastShot: {}, outSince: 0, eliminated: false, pev: [], joinedAt: this.time, deployPending: !isBot,
       brWeapon: -1, ping: 0,
     };
@@ -560,6 +560,7 @@ export class Match {
     }
     if (attacker && attacker.id !== q.id) {
       attacker.kills++;
+      if (head) attacker.headshots++;
       attacker.score += 100 + (head ? 25 : 0);
       if (this.mode.teams === 2) this.kills[attacker.team]++;
       if (this.ladder) this.advanceLadder(attacker);

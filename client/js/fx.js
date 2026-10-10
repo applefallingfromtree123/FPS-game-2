@@ -110,9 +110,31 @@ export class FX {
     this.decals = []; this.decalIdx = 0;
     const dg = new THREE.PlaneGeometry(0.12, 0.12);
     for (let i = 0; i < 160; i++) { const m = new THREE.Mesh(dg, this.decalMat); m.visible = false; scene.add(m); this.decals.push(m); }
+    // ejected brass
+    this.casings = [];
+    const cg = new THREE.CylinderGeometry(0.0035, 0.0035, 0.018, 6);
+    const cm = new THREE.MeshStandardMaterial({ color: 0xc9a23c, metalness: 0.9, roughness: 0.3 });
+    for (let i = 0; i < 28; i++) { const m = new THREE.Mesh(cg, cm); m.visible = false; scene.add(m); this.casings.push({ m, life: 0, v: new THREE.Vector3(), spin: new THREE.Vector3() }); }
+    this.casingIdx = 0;
+    this.groundAt = () => -1e9;
+    // floating dust / pollen motes around the viewer, lit by the sun
+    const N = 260;
+    const dp = new Float32Array(N * 3);
+    for (let i = 0; i < N; i++) dp.set([(Math.random() - 0.5) * 36, (Math.random() - 0.1) * 10, (Math.random() - 0.5) * 36], i * 3);
+    const dustGeo = new THREE.BufferGeometry(); dustGeo.setAttribute("position", new THREE.BufferAttribute(dp, 3));
+    this.dust = new THREE.Points(dustGeo, new THREE.PointsMaterial({ size: 0.045, color: 0xfff0d8, transparent: true, opacity: 0.4, depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true, fog: true }));
+    this.dust.frustumCulled = false; scene.add(this.dust);
     this.projectiles = new Map();
     this.wrecks = [];
     this.shake = 0;
+  }
+
+  casing(pos, right, up) {
+    const c = this.casings[this.casingIdx++ % this.casings.length];
+    c.m.position.copy(pos); c.m.visible = true; c.life = 3.5;
+    c.v.copy(right).multiplyScalar(2 + Math.random() * 1.5).addScaledVector(up, 1.6 + Math.random() * 1.2);
+    c.v.x += (Math.random() - 0.5) * 0.8; c.v.z += (Math.random() - 0.5) * 0.8;
+    c.spin.set((Math.random() - 0.5) * 30, (Math.random() - 0.5) * 30, (Math.random() - 0.5) * 30);
   }
 
   tracer(from, to, speed = 700, color = null) {
@@ -216,6 +238,27 @@ export class FX {
       const head = Math.min(t.t, t.dist);
       t.mesh.position.copy(t.from).addScaledVector(t.dir, Math.max(t.len / 2, head - t.len / 2));
       if (t.life <= 0) t.mesh.visible = false;
+    }
+    for (const c of this.casings) {
+      if (c.life <= 0) continue;
+      c.life -= dt;
+      c.v.y -= 9.8 * dt;
+      c.m.position.addScaledVector(c.v, dt);
+      c.m.rotation.x += c.spin.x * dt; c.m.rotation.y += c.spin.y * dt; c.m.rotation.z += c.spin.z * dt;
+      const g = this.groundAt(c.m.position.x, c.m.position.z);
+      if (c.m.position.y < g + 0.01) { c.m.position.y = g + 0.01; if (c.v.y < -1) { c.v.y *= -0.35; c.v.x *= 0.5; c.v.z *= 0.5; } else { c.v.set(0, 0, 0); c.spin.multiplyScalar(0.1); } }
+      if (c.life <= 0) c.m.visible = false;
+    }
+    {
+      // dust drifts with the wind and wraps around the camera
+      const a = this.dust.geometry.attributes.position.array, cp = this.camera.position;
+      this._dt = (this._dt || 0) + dt;
+      for (let i = 0; i < a.length; i += 3) {
+        a[i] += (0.25 + Math.sin(this._dt * 0.4 + i) * 0.1) * dt; a[i + 1] += Math.sin(this._dt * 0.7 + i * 0.3) * 0.08 * dt;
+        if (a[i] > 18) a[i] -= 36; if (a[i + 2] > 18) a[i + 2] -= 36; if (a[i + 2] < -18) a[i + 2] += 36; if (a[i] < -18) a[i] += 36;
+      }
+      this.dust.geometry.attributes.position.needsUpdate = true;
+      this.dust.position.set(cp.x, cp.y - 2, cp.z);
     }
     for (const f of this.flashes) { if (f.life > 0) { f.life -= dt; if (f.life <= 0) f.s.visible = false; } }
     if (this.lightLife > 0) { this.lightLife -= dt; if (this.lightLife <= 0) this.light.intensity = 0; }

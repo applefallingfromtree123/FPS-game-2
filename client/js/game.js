@@ -6,6 +6,8 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
+import { Lensflare, LensflareElement } from 'three/addons/objects/Lensflare.js';
 import { World, rayCapsule, raySphere } from '/shared/world.js';
 import { MAPS } from '/shared/maps.js';
 import { MODES } from '/shared/modes.js';
@@ -18,21 +20,49 @@ import { buildVehicle, VehicleController } from './vehicles.js';
 import { FX } from './fx.js';
 import { HUD } from './hud.js';
 import * as TX from './textures.js';
+import { drawCollimator, drawScope } from './sights.js';
 
 const $ = (id) => document.getElementById(id);
 const V3 = THREE.Vector3;
 const lerpAngle = (a, b, t) => { let d = b - a; d = Math.atan2(Math.sin(d), Math.cos(d)); return a + d * t; };
 
 const GradeShader = {
-  uniforms: { tDiffuse: { value: null }, uVig: { value: 0.35 }, uDamage: { value: 0 }, uSat: { value: 1.05 } },
+  uniforms: { tDiffuse: { value: null }, uVig: { value: 0.35 }, uDamage: { value: 0 }, uSat: { value: 1.04 }, uTime: { value: 0 }, uGrain: { value: 0.025 }, uCA: { value: 0.0016 }, uCool: { value: 0.0 } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
-  fragmentShader: `uniform sampler2D tDiffuse; uniform float uVig, uDamage, uSat; varying vec2 vUv;
-    void main(){ vec4 c = texture2D(tDiffuse, vUv);
-      float l = dot(c.rgb, vec3(0.299,0.587,0.114));
-      c.rgb = mix(vec3(l), c.rgb, uSat * (1.0 - uDamage * 0.7));
-      vec2 d = vUv - 0.5; float v = 1.0 - dot(d, d) * uVig * 2.2;
-      c.rgb *= v; c.r += uDamage * 0.15 * (1.0 - v);
-      gl_FragColor = c; }`,
+  fragmentShader: `uniform sampler2D tDiffuse; uniform float uVig, uDamage, uSat, uTime, uGrain, uCA, uCool; varying vec2 vUv;
+    float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233)) + uTime) * 43758.5453); }
+    void main(){
+      vec2 d = vUv - 0.5; float r2 = dot(d, d);
+      vec2 o = d * r2 * uCA * 14.0;                       // chromatic aberration grows toward the edges
+      vec3 col = vec3(texture2D(tDiffuse, vUv + o).r, texture2D(tDiffuse, vUv).g, texture2D(tDiffuse, vUv - o).b);
+      float l = dot(col, vec3(0.299,0.587,0.114));
+      col = mix(vec3(l), col, uSat * (1.0 - uDamage * 0.7));
+      col *= mix(vec3(1.0), vec3(0.93, 1.0, 1.08), uCool * (1.0 - smoothstep(0.0, 1.2, l))); // cool shadows
+      float v = 1.0 - r2 * uVig * 2.2;
+      col *= v; col.r += uDamage * 0.15 * (1.0 - v);
+      col += (hash(vUv * 1000.0) - 0.5) * uGrain * (1.0 - clamp(l, 0.0, 0.8));   // film grain, mostly in shadows
+      gl_FragColor = vec4(col, 1.0); }`,
+};
+
+// radial blur of the bright sky toward the sun: light shafts through trees and buildings
+const SunShaftShader = {
+  uniforms: { tDiffuse: { value: null }, uSun: { value: new THREE.Vector2(0.5, 0.5) }, uInt: { value: 0 }, uColor: { value: new THREE.Color(1, 0.9, 0.75) } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+  fragmentShader: `uniform sampler2D tDiffuse; uniform vec2 uSun; uniform float uInt; uniform vec3 uColor; varying vec2 vUv;
+    void main(){
+      vec4 base = texture2D(tDiffuse, vUv);
+      if (uInt < 0.002) { gl_FragColor = base; return; }
+      vec2 dir = (uSun - vUv); float dist = length(dir);
+      vec2 stepv = dir * 0.9 / 30.0;
+      vec2 uv = vUv; float decay = 1.0; vec3 acc = vec3(0.0);
+      for (int i = 0; i < 30; i++) {
+        uv += stepv;
+        vec3 s = texture2D(tDiffuse, uv).rgb;
+        float b = smoothstep(0.55, 1.1, dot(s, vec3(0.333)));
+        acc += s * b * decay; decay *= 0.935;
+      }
+      float falloff = smoothstep(1.3, 0.0, dist);
+      gl_FragColor = vec4(base.rgb + acc / 30.0 * uColor * uInt * falloff * 2.4, base.a); }`,
 };
 
 export class Game {
@@ -54,6 +84,7 @@ export class Game {
     this.keys = {}; this.mouse = { dx: 0, dy: 0, left: false, right: false, leftPressed: false, rightPressed: false };
     this.pos = new V3(); this.vel = new V3(); this.cam = { yaw: 0, pitch: 0 };
     this.stance = 0; this.onGround = true; this.para = 0; this.adsT = 0; this.sprinting = false;
+    this.sway = { x: 0, y: 0 }; this.breath = 1; this.sightDirty = true;
     this.tmpV = new V3();
     this.loudShooters = new Set();
     this.ammo = new Map(); this.slot = 0; this.reloadUntil = 0; this.nextFire = 0; this.burstLeft = 0; this.bloom = 0;
@@ -88,6 +119,20 @@ export class Game {
     await tick();
     progress(0.85, '병력 및 장비');
     this.fx = new FX(this.scene, this.camera);
+    this.fx.groundAt = (x, z) => this.world.heightAt(x, z);
+    if (q.name !== 'low' && this.world.time.sunElev > 3) {
+      // sun lens flare (occluded by terrain/buildings automatically)
+      const sunLight = new THREE.PointLight(0xffffff, 0, 0);
+      const flare = new Lensflare();
+      const tc = this.env.sun.color.clone();
+      flare.addElement(new LensflareElement(TX.radialSprite('rgba(255,255,255,1)', 'rgba(255,255,255,0)', 128), 420, 0, tc));
+      flare.addElement(new LensflareElement(TX.radialSprite('rgba(255,220,170,0.5)', 'rgba(255,200,150,0)', 64), 150, 0.35, new THREE.Color(1, 0.8, 0.6)));
+      flare.addElement(new LensflareElement(TX.radialSprite('rgba(150,200,255,0.4)', 'rgba(150,200,255,0)', 64), 90, 0.62, new THREE.Color(0.7, 0.85, 1)));
+      flare.addElement(new LensflareElement(TX.radialSprite('rgba(255,255,255,0.35)', 'rgba(255,255,255,0)', 64), 210, 0.9, new THREE.Color(0.9, 0.95, 1)));
+      sunLight.add(flare);
+      this.scene.add(sunLight);
+      this.sunFlare = sunLight;
+    }
     // first-person viewmodel scene
     this.vmScene = new THREE.Scene();
     this.vmCamera = new THREE.PerspectiveCamera(52, innerWidth / innerHeight, 0.01, 10);
@@ -104,13 +149,16 @@ export class Game {
     const rt = new THREE.WebGLRenderTarget(innerWidth, innerHeight, { type: THREE.HalfFloatType, samples: q.msaa });
     const comp = new EffectComposer(r, rt);
     comp.addPass(new RenderPass(this.scene, this.camera));
+    if (q.name !== 'low') { this.shafts = new ShaderPass(SunShaftShader); this.shafts.uniforms.uColor.value.copy(this.env.sun.color); comp.addPass(this.shafts); }
     const vmPass = new RenderPass(this.vmScene, this.vmCamera);
     vmPass.clear = false; vmPass.clearDepth = true;
     comp.addPass(vmPass);
     if (q.bloom) comp.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth / 2, innerHeight / 2), 0.22, 0.6, 0.92));
     this.grade = new ShaderPass(GradeShader);
+    this.grade.uniforms.uCool.value = this.world.time.sunElev < 12 ? 0.25 : 0.55;
     comp.addPass(this.grade);
     comp.addPass(new OutputPass());
+    if (q.msaa === 0 && q.name !== 'low') { this.smaa = new SMAAPass(innerWidth * r.getPixelRatio(), innerHeight * r.getPixelRatio()); comp.addPass(this.smaa); }
     this.composer = comp;
     // vehicles
     for (const [id, type, team] of this.vehInit) this._ensureVehicle(id, type, team);
@@ -144,6 +192,7 @@ export class Game {
   resize() {
     this.renderer.setSize(innerWidth, innerHeight);
     this.composer.setSize(innerWidth, innerHeight);
+    if (this.smaa) this.smaa.setSize(innerWidth * this.renderer.getPixelRatio(), innerHeight * this.renderer.getPixelRatio());
     this.camera.aspect = this.vmCamera.aspect = innerWidth / innerHeight;
     this.camera.updateProjectionMatrix(); this.vmCamera.updateProjectionMatrix();
   }
@@ -323,6 +372,7 @@ export class Game {
     const sight = w && (w.id === this.me.loadout.primary && !this.mode.br) ? this.me.loadout.sight : w ? w.sight : 'iron';
     this.sightKind = sight;
     this.zoom = w ? zoomFor(w, sight) : 1;
+    this.sightDirty = true;
     this.fireModeIdx = 0;
   }
 
@@ -385,7 +435,7 @@ export class Game {
   }
 
   eyePos() { return new V3(this.pos.x, this.pos.y + this.eyeH, this.pos.z); }
-  aimDir() { const y = this.cam.yaw, p = this.cam.pitch; return new V3(-Math.sin(y) * Math.cos(p), Math.sin(p), -Math.cos(y) * Math.cos(p)); }
+  aimDir() { const y = this.cam.yaw + this.sway.x, p = this.cam.pitch + this.sway.y; return new V3(-Math.sin(y) * Math.cos(p), Math.sin(p), -Math.cos(y) * Math.cos(p)); }
 
   currentSpread() {
     const w = this.weapon();
@@ -434,7 +484,7 @@ export class Game {
     const spread = THREE.MathUtils.degToRad(this.currentSpread());
     for (let i = 0; i < w.pellets; i++) {
       const ang = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * spread * 0.5;
-      const yaw = this.cam.yaw + Math.cos(ang) * r, pitch = this.cam.pitch + Math.sin(ang) * r;
+      const yaw = this.cam.yaw + this.sway.x + Math.cos(ang) * r, pitch = this.cam.pitch + this.sway.y + Math.sin(ang) * r;
       dirs.push([-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch)]);
     }
     const isPrim = w.id === this.me.loadout.primary && !this.mode.br;
@@ -446,6 +496,7 @@ export class Game {
     this.vmFlash.visible = !suppressed && w.cat !== 'launcher'; this.vmFlash.scale.setScalar(w.cat === 'launcher' ? 0.6 : 0.18); this.vmFlash.material.rotation = Math.random() * 6;
     this.flashT = 0.05;
     const muzzleWorld = this.muzzleWorld();
+    if (w.cat !== 'launcher' && w.cat !== 'shotgun') { const rt = new V3(Math.cos(this.cam.yaw), 0, -Math.sin(this.cam.yaw)); this.fx.casing(this.eyePos().addScaledVector(this.aimDir(), 0.35).addScaledVector(rt, 0.1).add(new V3(0, -0.07, 0)), rt, new V3(0, 1, 0)); }
     if (!suppressed) { this.fx.light.position.copy(muzzleWorld); this.fx.light.intensity = 25; this.fx.lightLife = 0.05; }
     if (w.cat === 'launcher') {
       for (let i = 0; i < 12; i++) this.fx.smoke.emit(eye.x, eye.y, eye.z, (Math.random() - 0.5) * 2 - dirs[0][0] * 6, Math.random(), (Math.random() - 0.5) * 2 - dirs[0][2] * 6, 0.8, 0.8, 0.8, 0.8, 0.5, 1.5, { grow: 2, drag: 2 });
@@ -533,6 +584,8 @@ export class Game {
     if (this.fx.shake > 0) { this.camera.rotation.x += (Math.random() - 0.5) * this.fx.shake * 0.05; this.camera.rotation.y += (Math.random() - 0.5) * this.fx.shake * 0.05; }
     safe('hud', () => { this.hud.update(dt); this.updateHudPanels(now); });
     this.grade.uniforms.uDamage.value = this.me.alive ? Math.max(0, (60 - this.me.hp) / 60) : 0.8;
+    this.grade.uniforms.uTime.value = (now * 0.001) % 100;
+    this.updateSun();
     const L = this.audio.listener; const cp = this.camera.position; L.x = cp.x; L.y = cp.y; L.z = cp.z; L.yaw = this.cam.yaw;
     // network state 20Hz
     if (now - this.lastSend > 50 && this.me.alive) {
@@ -552,6 +605,19 @@ export class Game {
       this.outOfBounds = Math.hypot(p.x - a[0], p.z - a[1]) > a[2];
     } else this.outOfBounds = false;
     if (this.frame % 30 === 0) $('fps').textContent = `${Math.round(1 / Math.max(dt, 0.001))} fps · ${this.ping || 0}ms` + (document.body.classList.contains('touch') ? ` · 터치 ${window.__tc || 0}` : '');
+  }
+
+  updateSun() {
+    const cp = this.camera.position, sd = this.env.sunDir;
+    if (this.sunFlare) { this.sunFlare.position.set(cp.x + sd.x * 900, cp.y + sd.y * 900, cp.z + sd.z * 900); this.sunFlare.visible = !(this.adsT > 0.9 && (this.sightKind === 'scope' || this.sightKind === 'acog')); }
+    if (this.shafts) {
+      const v = new THREE.Vector3(cp.x + sd.x * 1000, cp.y + sd.y * 1000, cp.z + sd.z * 1000).project(this.camera);
+      const fwd = new THREE.Vector3(); this.camera.getWorldDirection(fwd);
+      const facing = Math.max(0, fwd.dot(sd));
+      this.shafts.uniforms.uSun.value.set(v.x * 0.5 + 0.5, v.y * 0.5 + 0.5);
+      const strong = this.world.time.clouds ? 0.15 : 1;
+      this.shafts.uniforms.uInt.value = facing * facing * strong * (this.vehicle ? 0.8 : 1);
+    }
   }
 
   updatePlayer(dt, now, mdx, mdy, sens) {
@@ -646,14 +712,32 @@ export class Game {
 
   setCamera(dt, hs, now) {
     const bob = this.onGround ? Math.sin(now * 0.0105 * (this.sprinting ? 1.4 : 1)) * Math.min(1, hs / 5) * 0.035 * (1 - this.adsT * 0.8) : 0;
+    // weapon sway when aiming through magnified optics; hold Shift to steady your breath
+    const holding = !!this.keys.ShiftLeft && this.adsT > 0.8 && this.zoom >= 3 && this.breath > 0;
+    this.breath = Math.max(0, Math.min(1, this.breath + (holding ? -dt / 4 : dt / 6)));
+    const amp = (this.adsT > 0.5 && this.zoom >= 2 ? 0.0006 * Math.min(this.zoom, 8) : 0.00015) * this.adsT * (holding ? 0.1 : 1) * (this.stance === 2 ? 0.4 : this.stance === 1 ? 0.7 : 1) * (hs > 0.5 ? 2.2 : 1) * (this.breath <= 0 ? 1.8 : 1);
+    this.sway.x = (Math.sin(now * 0.0013) + Math.sin(now * 0.0031 + 1.7) * 0.5) * amp;
+    this.sway.y = (Math.cos(now * 0.0011 + 0.5) + Math.sin(now * 0.0027) * 0.5) * amp;
     this.camera.position.set(this.pos.x, this.pos.y + this.eyeH + bob, this.pos.z);
-    this.camera.rotation.set(this.cam.pitch, this.cam.yaw, 0);
+    this.camera.rotation.set(this.cam.pitch + this.sway.y, this.cam.yaw + this.sway.x, 0);
     const z = this.vmGun && this.adsT > 0 ? 1 + (this.zoom - 1) * this.adsT : 1;
     const base = THREE.MathUtils.degToRad(this.settings.fov);
     const fov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(base / 2) / z)) * (this.sprinting ? 1.06 : 1);
     if (Math.abs(fov - this.camera.fov) > 0.01) { this.camera.fov += (fov - this.camera.fov) * Math.min(1, dt * 20); this.camera.updateProjectionMatrix(); }
-    const scoped = this.adsT > 0.92 && (this.sightKind === 'scope' || this.sightKind === 'acog') && !this.vehicle;
+    const kind = this.sightKind;
+    const magnified = kind === 'scope' || kind === 'acog';
+    const scoped = this.adsT > 0.92 && magnified && !this.vehicle;
+    const collim = this.adsT > 0.85 && (kind === 'red' || kind === 'holo' || kind === 'x2') && !this.vehicle;
+    const size = innerWidth + 'x' + innerHeight;
+    if (this.sightDirty || this._sightSize !== size) {
+      this.sightDirty = false; this._sightSize = size;
+      const sc = $('scopeCv'), cc = $('sightCv');
+      if (magnified) { drawScope(sc, kind, this.zoom); cc.getContext('2d').clearRect(0, 0, cc.width, cc.height); }
+      else { drawCollimator(cc, kind); sc.getContext('2d').clearRect(0, 0, sc.width, sc.height); }
+    }
     $('scope').style.display = scoped ? 'block' : 'none';
+    $('sightCv').style.opacity = collim ? 1 : 0;
+    if (scoped && this.frame % 6 === 0) $('scopeInfo').textContent = `${this.zoom}X${this.zoom >= 3 ? '  ·  호흡 정지 [Shift] ' + Math.round(this.breath * 100) + '%' : ''}`;
     if (this.vmGun) this.vmGun.grp.visible = !scoped;
   }
 

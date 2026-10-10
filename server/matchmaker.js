@@ -8,7 +8,8 @@ import { MAPS } from '../shared/maps.js';
 let LOBBY_SEQ = 1;
 
 export class Matchmaker {
-  constructor() {
+  constructor(opts = {}) {
+    this.opts = opts;
     this.lobbies = new Map(); // id -> lobby
     this.matches = new Map();
     this.loop = setInterval(() => this.update(), 1000);
@@ -89,6 +90,17 @@ export class Matchmaker {
     if (l.clients.size === 1) this._startLobby(l);
   }
 
+  // Save a finished (or abandoned) match into the account's stats, once per player.
+  _record(m, p) {
+    if (!p || p.recorded || !p.client || !p.client.userKey || !this.opts.record) return;
+    p.recorded = true;
+    const seconds = Math.max(0, Math.round((m.time - p.joinedAt) / 1000));
+    if (p.score === 0 && p.kills === 0 && seconds < 60) return; // just walked in and out
+    const won = !!(m.ended && m.result && m.result.winner === p.team && m.result.winner !== -1);
+    const out = this.opts.record(p.client, { kills: p.kills, deaths: p.deaths, headshots: p.headshots || 0, score: p.score, caps: p.caps, seconds, won, mode: m.mode.id });
+    if (out) p.client.send({ t: 'profile', gained: out.gained, leveledUp: out.leveledUp, won, profile: out.profile });
+  }
+
   leave(client) {
     if (client.lobby) {
       const l = client.lobby;
@@ -101,6 +113,7 @@ export class Matchmaker {
     if (client.match) {
       const m = client.match;
       if (client.player) {
+        this._record(m, client.player);
         m.removePlayer(client.player.id);
         // keep the battle full: a bot takes the empty slot
         if (!m.ended && !m.mode.br) m.fillBots();
@@ -127,7 +140,7 @@ export class Matchmaker {
 
   _startLobby(l) {
     this.lobbies.delete(l.id);
-    const match = new Match(l.mode, l.map, { onEnd: (m) => setTimeout(() => this._closeMatch(m), 20000) });
+    const match = new Match(l.mode, l.map, { onEnd: (m) => { for (const p of m.players.values()) this._record(m, p); setTimeout(() => this._closeMatch(m), 20000); } });
     this.matches.set(match.id, match);
     for (const c of l.clients) { c.lobby = null; this._joinMatch(match, c, false); }
     match.fillBots();

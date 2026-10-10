@@ -13,6 +13,15 @@
 </script>
 </head>
 <body>
+<div id="intro">
+  <canvas id="introFx"></canvas>
+  <div class="in-line"></div>
+  <div class="in-pres">PRESENTED BY</div>
+  <div class="in-gg" id="inGG"></div>
+  <div class="in-flare"></div>
+  <div class="in-title"><div class="in-wf">WARFIELD</div><div class="in-sub">100 PLAYER ALL-OUT WAR</div></div>
+  <div class="in-skip">화면을 누르면 건너뜁니다 ▸</div>
+</div>
 <canvas id="gl"></canvas>
 <canvas id="overlay"></canvas>
 
@@ -22,10 +31,12 @@
   <div class="menu-left">
     <div class="logo">WARFIELD</div>
     <div class="tagline">100인 전면전 · 40개 전장 · 112종 무기</div>
-    <div class="name-row"><label>콜사인</label><input id="name" maxlength="16" placeholder="플레이어 이름"></div>
+    <div id="account" class="account"></div>
+    <div class="name-row" id="guestName"><label>콜사인 (게스트)</label><input id="name" maxlength="16" placeholder="플레이어 이름"></div>
     <nav class="menu-nav">
       <button data-tab="play" class="active">플레이</button>
       <button data-tab="loadout">병과 &amp; 무기</button>
+      <button data-tab="rank">랭킹</button>
       <button data-tab="settings">설정</button>
       <button data-tab="howto">조작법</button>
     </nav>
@@ -41,6 +52,14 @@
         <button id="btnPractice">봇과 즉시 시작</button>
       </div>
       <p class="hint">온라인 매치: 2명 이상이 모이면 <b>2분</b> 카운트다운이 시작되고, 시간이 지나면 남은 자리는 <b>AI 봇</b>으로 채워져 바로 전투가 시작됩니다. 진행 중인 전투가 있으면 봇 자리를 대신해 즉시 합류합니다.</p>
+    </section>
+    <section id="tab-rank" class="tab">
+      <h2>랭킹</h2>
+      <div class="rank-tabs" id="rankTabs">
+        <button data-by="xp" class="sel">경험치</button><button data-by="kills">킬</button><button data-by="wins">승리</button><button data-by="kd">K/D</button><button data-by="headshots">헤드샷</button>
+      </div>
+      <div id="rankTable" class="rank-table">불러오는 중…</div>
+      <p class="hint" id="rankNote">K/D 랭킹은 3경기·20킬 이상부터 집계됩니다. 로그인해야 기록이 쌓입니다.</p>
     </section>
     <section id="tab-loadout" class="tab"><div id="loadoutEditor"></div></section>
     <section id="tab-settings" class="tab">
@@ -68,6 +87,18 @@
         <div class="span"><b>전투기</b>: 마우스 조종, W/S 스로틀, A/D 요, 좌클릭 기관포, 우클릭 미사일(자동 추적)</div>
       </div>
     </section>
+  </div>
+</div>
+
+<!-- ============ ACCOUNT ============ -->
+<div id="authModal" class="modal">
+  <div class="panel auth-box">
+    <div class="auth-tabs"><button id="authTabLogin" class="sel">로그인</button><button id="authTabReg">계정 만들기</button></div>
+    <label>이름 <input id="authName" maxlength="16" autocomplete="username" placeholder="3~16자 (한글/영문/숫자/_)"></label>
+    <label>비밀번호 <input id="authPass" type="password" autocomplete="current-password" placeholder="6자 이상"></label>
+    <div id="authErr" class="auth-err"></div>
+    <div class="row"><button id="authSubmit" class="primary">로그인</button><button id="authCancel">닫기</button></div>
+    <p class="hint">계정이 있으면 킬·승리·경험치가 저장되고 전체 랭킹에 올라갑니다. 비밀번호는 암호화(scrypt)되어 저장됩니다.</p>
   </div>
 </div>
 
@@ -128,7 +159,8 @@
   </div>
   <div id="vehHud"></div>
   <div id="interact"></div>
-  <div id="scope"><div class="scope-cross"></div></div>
+  <canvas id="sightCv"></canvas>
+  <div id="scope"><canvas id="scopeCv"></canvas><div id="scopeInfo"></div></div>
   <div id="damageFlash"></div>
   <div id="bigmap"><canvas id="bigmapCanvas" width="800" height="800"></canvas></div>
   <div id="scoreboard"></div>
