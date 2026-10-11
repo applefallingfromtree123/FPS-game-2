@@ -269,7 +269,7 @@ async function loadRank(by = 'xp') {
 }
 
 // ---------------------------------------------------------------- lobby & match
-const CLIENT_BUILD = 'fix-6';
+const CLIENT_BUILD = 'chat-1';
 net.on('welcome', (m) => {
   lobbySeen = false;
   account.durable = m.durable !== false; renderAccount();
@@ -352,9 +352,10 @@ function route(msg) {
   else if (msg.t === 'state') game.onState(msg);
   else if (msg.t === 'board') game.onBoard(msg.b);
   else if (msg.t === 'end') game.showEnd(msg);
+  else if (msg.t === 'chat') game.onChat(msg);
   else if (msg.t === 'po') game.ping = Math.round(performance.now() - msg.c);
 }
-for (const t of ['ev', 'state', 'board', 'end', 'po']) net.on(t, route);
+for (const t of ['ev', 'state', 'board', 'end', 'po', 'chat']) net.on(t, route);
 net.onBinary = (buf) => { if (game && game.running) game.onSnapshot(buf); };
 let pingSent = 0;
 setInterval(() => { if (game && game.ping !== undefined && performance.now() - pingSent > 5000) { pingSent = performance.now(); net.send({ t: 'ping', v: game.ping }); } }, 1000);
@@ -366,7 +367,7 @@ function exitMatch(sendLeave = true) {
   $('hud').classList.remove('active');
   for (const id of ['deploy', 'endScreen', 'pause', 'scoreboard', 'bigmap', 'deathCam']) $(id).style.display = '';
   $('deploy').classList.remove('active');
-  $('killfeed').innerHTML = '';
+  $('killfeed').innerHTML = ''; $('chatLog').innerHTML = ''; $('chatForm').classList.remove('open'); $('chatLog').classList.remove('open');
   const ctx = $('overlay').getContext('2d'); ctx.clearRect(0, 0, 99999, 99999);
   show('menu');
 }

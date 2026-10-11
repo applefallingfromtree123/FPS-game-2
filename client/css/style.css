@@ -296,3 +296,18 @@ button.primary:hover { background: #8fdcff; filter: none; }
 /* outside of a magnified lens: blurred, dimmed surroundings (ring-shaped mask leaves the lens clear) */
 #scopeBlur { position: absolute; inset: 0; pointer-events: none; -webkit-backdrop-filter: blur(7px) brightness(0.72); backdrop-filter: blur(7px) brightness(0.72);
   -webkit-mask-image: radial-gradient(circle at 50% 50%, transparent calc(var(--sr, 46) * 1vmin + 2px), #000 calc(var(--sr, 46) * 1vmin + 22px)); mask-image: radial-gradient(circle at 50% 50%, transparent calc(var(--sr, 46) * 1vmin + 2px), #000 calc(var(--sr, 46) * 1vmin + 22px)); }
+
+/* in-match chat */
+#chatLog { position: absolute; left: 14px; bottom: 262px; width: min(380px, 44vw); max-height: 170px; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; pointer-events: none; font: 600 13px 'Noto Sans KR', Rajdhani, sans-serif; text-shadow: 0 1px 3px #000, 0 0 2px #000; }
+#chatLog .cm { padding: 1px 6px; background: rgba(6,10,16,0.45); margin-top: 2px; word-break: break-all; transition: opacity .6s; }
+#chatLog .cm.old { opacity: 0; }
+#chatLog.open .cm.old { opacity: 1; }
+#chatLog .cm b { font-weight: 700; } #chatLog .cm.fr b { color: #7fd0ff; } #chatLog .cm.en b { color: #ff8a7e; } #chatLog .cm .tg { color: #9fe39a; margin-right: 4px; }
+#chatForm { position: absolute; left: 14px; bottom: 226px; width: min(420px, 60vw); display: none; gap: 4px; z-index: 45; }
+#chatForm.open { display: flex; }
+#chatForm input { flex: 1; min-width: 0; padding: 7px 9px; font: 500 15px 'Noto Sans KR', sans-serif; background: rgba(8,12,18,0.85); color: #fff; border: 1px solid var(--accent, #5fc7ff); outline: none; }
+#chatTag { align-self: center; font: 700 12px Rajdhani, sans-serif; color: var(--accent, #5fc7ff); letter-spacing: 1px; min-width: 30px; }
+#chatForm button { padding: 6px 10px; font-size: 13px; }
+body.touch #chatLog { bottom: auto; top: 172px; }
+body.touch #chatForm { bottom: auto; top: 12px; left: 50%; transform: translateX(-50%); width: min(520px, 70vw); }
+.tb.chat { left: 40px; top: 24%; width: 56px; height: 56px; font-size: 11px; }

@@ -228,6 +228,8 @@ export class Game {
   bindInput() {
     const c = $('gl');
     this._kd = (e) => {
+      if (this.chatOpen) { if (e.code === 'Escape') { e.preventDefault(); this.closeChat(false); } return; }
+      if ((e.code === 'Enter' || e.code === 'KeyT' || e.code === 'KeyY') && this.running && !this.ended && $('deploy').style.display !== 'flex' && $('pause').style.display !== 'flex' && (this.locked() || e.code === 'Enter')) { e.preventDefault(); this.openChat(e.code === 'KeyY'); return; }
       if (e.code === 'Tab') { e.preventDefault(); $('scoreboard').style.display = 'block'; this.hud.renderScoreboard(); }
       if (!this.hasPointerLock && e.code === 'Escape' && this.engaged) { this.unlock(); return; }
       if (!this.locked()) return;
@@ -252,6 +254,7 @@ export class Game {
     };
     this._md = (e) => {
       this.audio.init();
+      if (this.chatOpen) return;
       if (!this.locked()) { if (this.me.alive && !this.ended && $('deploy').style.display !== 'flex' && $('pause').style.display !== 'flex') this.lock(); return; }
       if (e.button === 0) { this.mouse.left = true; this.mouse.leftPressed = true; }
       if (e.button === 2) { this.mouse.right = true; this.mouse.rightPressed = true; }
@@ -259,6 +262,7 @@ export class Game {
     this._mu = (e) => { if (e.button === 0) this.mouse.left = false; if (e.button === 2) this.mouse.right = false; };
     window.addEventListener('blur', () => { if (!this.hasPointerLock) this.unlock(); });
     this._plc = () => {
+      if (this.chatOpen) return;
       if (!this.locked() && this.me.alive && !this.ended && $('deploy').style.display !== 'flex') { $('pause').style.display = 'flex'; }
       else if (this.locked()) { $('pause').style.display = 'none'; this.ignoreMouseUntil = performance.now() + 120; }
       this.keys = {}; this.mouse.left = this.mouse.right = false;
@@ -992,6 +996,48 @@ export class Game {
       }
     }
     return buf[0];
+  }
+
+  // ------------------------------------------------------------ chat
+  initChat() {
+    if (this._chatInit) return; this._chatInit = true;
+    const form = $('chatForm'), input = $('chatInput');
+    form.onsubmit = (e) => { e.preventDefault(); this.closeChat(true); };
+    $('chatClose').onclick = () => this.closeChat(false);
+    $('chatTag').onclick = () => { if (this.mode.teams) { this.chatTeam = !this.chatTeam; $('chatTag').textContent = this.chatTeam ? '팀' : '전체'; } };
+    input.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.code === 'Escape') this.closeChat(false); });
+    input.addEventListener('keyup', (e) => e.stopPropagation());
+  }
+  openChat(team = false) {
+    this.initChat();
+    if (this.chatOpen) return;
+    this.chatOpen = true; this.chatTeam = !!team && !!this.mode.teams;
+    $('chatTag').textContent = this.chatTeam ? '팀' : '전체';
+    $('chatForm').classList.add('open'); $('chatLog').classList.add('open');
+    this.keys = {}; this.mouse.left = this.mouse.right = false;
+    if (this.hasPointerLock && document.pointerLockElement) document.exitPointerLock();
+    const i = $('chatInput'); i.value = ''; setTimeout(() => i.focus(), 0);
+  }
+  closeChat(send) {
+    if (!this.chatOpen) return;
+    const i = $('chatInput'), txt = i.value.trim();
+    if (send && txt) this.net.send({ t: 'chat', m: txt, tm: this.chatTeam ? 1 : 0 });
+    i.value = ''; i.blur();
+    $('chatForm').classList.remove('open'); $('chatLog').classList.remove('open');
+    this.chatOpen = false;
+    if (this.me.alive && !this.ended && $('deploy').style.display !== 'flex') this.lock();
+  }
+  onChat(m) {
+    const log = $('chatLog');
+    const el = document.createElement('div');
+    const fr = this.mode.teams === 0 ? m.id === this.me.id : m.team === this.me.team;
+    el.className = 'cm ' + (fr ? 'fr' : 'en');
+    if (m.tm) { const tg = document.createElement('span'); tg.className = 'tg'; tg.textContent = '[팀]'; el.appendChild(tg); }
+    const b = document.createElement('b'); b.textContent = m.name + ': '; el.appendChild(b);
+    el.appendChild(document.createTextNode(m.m));
+    log.appendChild(el);
+    while (log.children.length > 8) log.removeChild(log.firstChild);
+    setTimeout(() => el.classList.add('old'), 12000);
   }
 
   // Floating name tags: teammates always (through walls, like Battlefield), enemies only when close and visible.

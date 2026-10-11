@@ -802,7 +802,25 @@ export class Match {
         this.openLoot(p, idx);
         break;
       }
+      case 'chat': this.chat(p, msg.m, !!msg.tm); break;
       case 'ping': p.ping = clamp(msg.v | 0, 0, 999); break;
+    }
+  }
+
+  // In-match text chat: all players, or team/squad only. Rate limited and sanitised.
+  chat(p, text, teamOnly) {
+    if (typeof text !== 'string') return;
+    const m = text.replace(/[\u0000-\u001f\u007f<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, 120);
+    if (!m) return;
+    const now = Date.now();
+    if (now - (p.lastChat || 0) < 700) return;
+    p.lastChat = now;
+    if (this.mode.teams === 0) teamOnly = false;
+    const out = JSON.stringify({ t: 'chat', id: p.id, name: p.name, team: p.team, tm: teamOnly ? 1 : 0, m });
+    for (const q of this.players.values()) {
+      if (q.isBot || !q.client) continue;
+      if (teamOnly && q.team !== p.team) continue;
+      q.client.sendRaw(out);
     }
   }
 
