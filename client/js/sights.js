@@ -46,12 +46,30 @@ export function drawScope(cv, kind, zoom) {
   // outside the lens: the surroundings stay visible (blurred by the #scopeBlur CSS layer); a thick scope-tube ring frames the lens
   g.fillStyle = 'rgba(0,0,0,0.22)';
   g.beginPath(); g.rect(0, 0, w, h); g.arc(cx, cy, R, 0, TAU, true); g.fill('evenodd');
-  const rim = R * 0.085;
+  const rim = R * 0.13;
+  // gun-rail body rising from the bottom of the screen into the scope ring (like looking through a real scope on a rifle)
+  {
+    const bw = R * 0.62, top = cy + R * 0.9;
+    const rg = g.createLinearGradient(cx - bw, 0, cx + bw, 0);
+    rg.addColorStop(0, '#0b0c0e'); rg.addColorStop(0.25, '#26292d'); rg.addColorStop(0.5, '#15171a'); rg.addColorStop(0.75, '#26292d'); rg.addColorStop(1, '#0b0c0e');
+    g.fillStyle = rg; g.beginPath(); g.moveTo(cx - bw * 0.55, top); g.lineTo(cx + bw * 0.55, top); g.lineTo(cx + bw, h); g.lineTo(cx - bw, h); g.closePath(); g.fill();
+    g.fillStyle = '#050607';
+    for (let y = top + R * 0.04, i = 0; y < h; y += R * 0.075, i++) { const k = (y - top) / (h - top); g.fillRect(cx - bw * (0.5 + 0.45 * k) * 0.92, y, bw * (0.5 + 0.45 * k) * 1.84, R * 0.022); }
+  }
+  // outer ring: matte black with a metallic sheen, knurled edge ticks and an inner chamfer
   g.lineWidth = rim; g.strokeStyle = '#08090a'; g.beginPath(); g.arc(cx, cy, R + rim / 2 - 1 * dpr, 0, TAU); g.stroke();
-  g.lineWidth = 2 * dpr; g.strokeStyle = 'rgba(150,165,180,0.28)'; g.beginPath(); g.arc(cx, cy, R + rim - 1 * dpr, 0, TAU); g.stroke();
-  const hl = g.createLinearGradient(cx - R, cy - R, cx + R, cy + R);
-  hl.addColorStop(0, 'rgba(200,215,230,0.35)'); hl.addColorStop(0.35, 'rgba(200,215,230,0)'); hl.addColorStop(1, 'rgba(0,0,0,0)');
-  g.lineWidth = rim * 0.35; g.strokeStyle = hl; g.beginPath(); g.arc(cx, cy, R + rim * 0.5, Math.PI * 0.95, Math.PI * 1.6); g.stroke();
+  const sheen = g.createLinearGradient(cx - R, cy - R, cx + R, cy + R);
+  sheen.addColorStop(0, 'rgba(210,222,235,0.42)'); sheen.addColorStop(0.3, 'rgba(210,222,235,0.06)'); sheen.addColorStop(0.7, 'rgba(0,0,0,0)'); sheen.addColorStop(1, 'rgba(160,175,190,0.22)');
+  g.lineWidth = rim * 0.55; g.strokeStyle = sheen; g.beginPath(); g.arc(cx, cy, R + rim * 0.5, 0, TAU); g.stroke();
+  g.strokeStyle = 'rgba(0,0,0,0.9)'; g.lineWidth = 1.6 * dpr;
+  for (let i = 0; i < 72; i++) { const a = (i / 72) * TAU, r1 = R + rim * 0.74, r2 = R + rim * 0.94; g.beginPath(); g.moveTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1); g.lineTo(cx + Math.cos(a) * r2, cy + Math.sin(a) * r2); g.stroke(); }
+  g.lineWidth = 2.2 * dpr; g.strokeStyle = 'rgba(160,175,190,0.4)'; g.beginPath(); g.arc(cx, cy, R + rim - 1 * dpr, 0, TAU); g.stroke();     // outer edge highlight
+  g.lineWidth = 3 * dpr; g.strokeStyle = '#000'; g.beginPath(); g.arc(cx, cy, R + 1.5 * dpr, 0, TAU); g.stroke();                                // lens seat
+  g.lineWidth = 1.2 * dpr; g.strokeStyle = 'rgba(190,205,220,0.5)'; g.beginPath(); g.arc(cx, cy, R - 0.5 * dpr, 0, TAU); g.stroke();             // inner chamfer glint
+  // elevation turret cap on top and windage knob at the side
+  g.fillStyle = '#0d0e10'; g.strokeStyle = 'rgba(160,175,190,0.35)'; g.lineWidth = 1.5 * dpr;
+  g.beginPath(); g.roundRect(cx - R * 0.09, cy - R - rim - R * 0.07, R * 0.18, R * 0.09, 6 * dpr); g.fill(); g.stroke();
+  g.beginPath(); g.roundRect(cx + R + rim - R * 0.01, cy - R * 0.09, R * 0.08, R * 0.18, 6 * dpr); g.fill(); g.stroke();
   const edge = g.createRadialGradient(cx, cy, R * 0.86, cx, cy, R);
   edge.addColorStop(0, 'rgba(0,0,0,0)'); edge.addColorStop(0.8, 'rgba(0,0,0,0.25)'); edge.addColorStop(1, 'rgba(0,0,0,0.7)');
   g.fillStyle = edge; g.beginPath(); g.arc(cx, cy, R, 0, TAU); g.fill();
