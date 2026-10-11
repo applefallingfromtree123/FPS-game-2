@@ -757,9 +757,9 @@ export class Game {
     const fov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(base / 2) / z)) * (this.sprinting ? 1.06 : 1);
     if (Math.abs(fov - this.camera.fov) > 0.01) { this.camera.fov += (fov - this.camera.fov) * Math.min(1, dt * 20); this.camera.updateProjectionMatrix(); }
     const kind = this.sightKind;
-    const magnified = kind === 'scope' || kind === 'acog';
+    const magnified = kind === 'scope' || kind === 'acog' || kind === 'x2';
     const scoped = this.adsT > 0.92 && magnified && !this.vehicle;
-    const collim = this.adsT > 0.85 && (kind === 'red' || kind === 'holo' || kind === 'x2') && !this.vehicle;
+    const collim = this.adsT > 0.85 && (kind === 'red' || kind === 'holo') && !this.vehicle;
     const size = innerWidth + 'x' + innerHeight;
     if (this.sightDirty || this._sightSize !== size) {
       this.sightDirty = false; this._sightSize = size;
@@ -768,7 +768,7 @@ export class Game {
       else { drawCollimator(cc, kind); sc.getContext('2d').clearRect(0, 0, sc.width, sc.height); }
     }
     $('scope').style.display = scoped ? 'block' : 'none';
-    if (scoped) $('scopeBlur').style.setProperty('--sr', kind === 'scope' ? 46 : 40);
+    if (scoped) $('scopeBlur').style.setProperty('--sr', kind === 'scope' ? 46 : kind === 'x2' ? 43 : 40);
     $('sightCv').style.opacity = collim ? 1 : 0;
     if (scoped && this.frame % 6 === 0) $('scopeInfo').textContent = `${this.zoom}X${this.zoom >= 3 ? '  ·  호흡 정지 [Shift] ' + Math.round(this.breath * 100) + '%' : ''}`;
     if (this.vmGun) this.vmGun.grp.visible = !scoped;

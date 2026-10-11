@@ -41,7 +41,7 @@ export function drawScope(cv, kind, zoom) {
   const g = cv.getContext('2d');
   g.clearRect(0, 0, w, h);
   const cx = w / 2, cy = h / 2;
-  const R = m * (kind === 'scope' ? 0.46 : 0.40);
+  const R = m * (kind === 'scope' ? 0.46 : kind === 'x2' ? 0.43 : 0.40);
 
   // outside the lens: the surroundings stay visible (blurred by the #scopeBlur CSS layer); a thick scope-tube ring frames the lens
   g.fillStyle = 'rgba(0,0,0,0.22)';
@@ -103,6 +103,13 @@ export function drawScope(cv, kind, zoom) {
     for (let i = 3; i <= 9; i += 2) { g.beginPath(); g.moveTo(cx - 10 * dpr, cy + i * k * 1.0); g.lineTo(cx + 10 * dpr, cy + i * k * 1.0); g.stroke(); }
     // tiny centre dot
     g.fillStyle = '#c21b12'; g.beginPath(); g.arc(cx, cy, 1.6 * dpr, 0, TAU); g.fill();
+  } else if (kind === 'x2') {
+    // 2x combat optic: thin cross with an illuminated ring-and-dot, wide field of view
+    g.strokeStyle = 'rgba(8,8,8,0.92)'; g.lineWidth = 2.4 * dpr;
+    g.beginPath(); g.moveTo(cx - R, cy); g.lineTo(cx - m * 0.05, cy); g.moveTo(cx + m * 0.05, cy); g.lineTo(cx + R, cy); g.moveTo(cx, cy + m * 0.05); g.lineTo(cx, cy + R); g.moveTo(cx, cy - m * 0.05); g.lineTo(cx, cy - R); g.stroke();
+    g.shadowColor = 'rgba(255,50,30,0.95)'; g.shadowBlur = 9 * dpr; g.strokeStyle = '#ff3b2a'; g.fillStyle = '#ff3b2a'; g.lineWidth = 2.2 * dpr;
+    g.beginPath(); g.arc(cx, cy, m * 0.03, 0, TAU); g.stroke(); g.beginPath(); g.arc(cx, cy, 2 * dpr, 0, TAU); g.fill();
+    for (let i = 1; i <= 4; i++) { const y = cy + m * 0.03 + i * k * 1.4; g.beginPath(); g.moveTo(cx - m * 0.012 * (i % 2 ? 1 : 1.8), y); g.lineTo(cx + m * 0.012 * (i % 2 ? 1 : 1.8), y); g.stroke(); }
   } else {
     // ACOG-style: illuminated chevron with ballistic drop marks
     g.shadowColor = 'rgba(255,50,30,0.95)'; g.shadowBlur = 10 * dpr; g.strokeStyle = '#ff3b2a'; g.fillStyle = '#ff3b2a'; g.lineWidth = 2.6 * dpr;
