@@ -21,6 +21,7 @@ const BUTTONS = [
   { id: 'tGren', label: '수류탄', cls: 'gren', kind: 'tap', key: 'KeyG' },
   { id: 'tDet', label: '기폭', cls: 'det', kind: 'det' },
   { id: 'tChat', label: '채팅', cls: 'chat', kind: 'chat' },
+  { id: 'tExit', label: '하차', cls: 'exit', kind: 'exit' },
   { id: 'tUse', label: '탑승/사용', cls: 'use', kind: 'tap', key: 'KeyE' },
   { id: 'tSwap', label: '무기', cls: 'swap', kind: 'swap' },
   { id: 'tMode', label: '모드', cls: 'mode', kind: 'tap', key: 'KeyB' },
@@ -112,6 +113,7 @@ export function initTouch(getGame, getMode = () => 'auto') {
       case 'tap': g.onKey(def.key); held.set(id, { btn }); break;
       case 'swap': { const order = g.mode.br ? [0, 1] : g.gadgetKind() ? [0, 1, 2] : [0, 1]; const i = order.indexOf(g.slot); g.switchSlot(order[(i + 1) % order.length]); held.set(id, { btn }); break; }
       case 'chat': g.openChat(false); held.set(id, { btn }); break;
+      case 'exit': g.interact(); held.set(id, { btn }); break;
       case 'det': g.net.send({ t: 'det' }); g.audio.unlock && g.audio.unlock(); held.set(id, { btn }); break;
       case 'score': { const s = $('scoreboard'); const on = s.style.display !== 'block'; s.style.display = on ? 'block' : 'none'; if (on) g.hud.renderScoreboard(); held.set(id, { btn }); break; }
       case 'map': { const m = $('bigmap'); const on = m.style.display !== 'flex'; m.style.display = on ? 'flex' : 'none'; if (on) g.hud.drawBigMap(); held.set(id, { btn }); break; }
@@ -124,8 +126,9 @@ export function initTouch(getGame, getMode = () => 'auto') {
     if (h.ads) g.mouse.right = false;
   };
 
+  const exitBtn = document.getElementById('tExit');
   const detBtn = document.getElementById('tDet');
-  setInterval(() => { const g = G(); if (detBtn) detBtn.style.display = g && g.running && g.gadgetKind && g.gadgetKind() === 'c4' ? 'flex' : 'none'; }, 400);
+  setInterval(() => { const g = G(); if (exitBtn) exitBtn.style.display = g && g.running && g.vehicle ? 'flex' : 'none'; if (detBtn) detBtn.style.display = g && g.running && g.gadgetKind && g.gadgetKind() === 'c4' ? 'flex' : 'none'; }, 400);
   root.addEventListener('touchstart', onStart, { passive: false });
   root.addEventListener('touchmove', onMove, { passive: false });
   root.addEventListener('touchend', onEnd, { passive: false });

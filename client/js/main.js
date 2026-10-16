@@ -269,7 +269,7 @@ async function loadRank(by = 'xp') {
 }
 
 // ---------------------------------------------------------------- lobby & match
-const CLIENT_BUILD = 'scope-3';
+const CLIENT_BUILD = 'veh-1';
 net.on('welcome', (m) => {
   lobbySeen = false;
   account.durable = m.durable !== false; renderAccount();

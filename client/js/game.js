@@ -301,7 +301,7 @@ export class Game {
 
   onKey(code) {
     if (!this.me.alive) return;
-    if (code === 'KeyE') return this.interact();
+    if (code === 'KeyE' || (code === 'KeyF' && this.vehicle)) return this.interact();
     if (code === 'KeyV' && this.vehicle) { this.thirdPerson = !this.thirdPerson; return; }
     if (code === 'KeyM') { $('bigmap').style.display = 'flex'; this.hud.drawBigMap(); }
     if (this.vehicle) return;
@@ -421,6 +421,7 @@ export class Game {
     if (this.vehicle) {
       const v = this.vehicle;
       this.net.send({ t: 'exit', p: [v.x + Math.cos(v.yaw) * (VEHICLES[v.type].radius + 1.2), v.y + 0.5, v.z - Math.sin(v.yaw) * (VEHICLES[v.type].radius + 1.2)] });
+      setTimeout(() => { if (this.vehicle === v) this.net.send({ t: 'exit' }); }, 1200);   // retry; the server then picks a free spot itself
       return;
     }
     const near = this.nearestVehicle();
@@ -1254,7 +1255,7 @@ export class Game {
         this.thirdPerson = true;
         this.stance = 0;
         $('vehHud').style.display = 'block';
-        this.hud.notice(VEHICLES[type].label, '[E] 하차 · [V] 시점 전환', '#9fd8ff');
+        this.hud.notice(VEHICLES[type].label, (document.body.classList.contains('touch') ? '[하차] 버튼으로 내리기' : '[E] 하차 · [V] 시점 전환'), '#9fd8ff');
         break;
       }
       case 'vx': {
