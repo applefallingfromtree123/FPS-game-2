@@ -39,6 +39,7 @@ export class Environment {
     this.buildClouds();
     if (this.time.rain) this.buildRain();
     this.buildObjectiveMarkers();
+    this.buildRunways();
   }
 
   // ------------------------------------------------------------ sky & light
@@ -108,6 +109,7 @@ export class Environment {
     geo.computeVertexNormals();
     const nrm = geo.attributes.normal;
     const roadD = (x, z) => { let d = 1e9; for (const r of w.roads) d = Math.min(d, distToSeg(x, z, r.ax, r.az, r.bx, r.bz) - r.w * 0.5); return d; };
+    const rwD = (x, z) => { let d = 1e9; for (const rw of w.runways || []) { const ex = x - rw.x, ez = z - rw.z, u = ex * rw.dx + ez * rw.dz, v = -ex * rw.dz + ez * rw.dx; d = Math.min(d, Math.hypot(Math.max(0, Math.abs(u) - rw.len / 2), Math.max(0, Math.abs(v) - rw.w / 2))); } return d; };
     const townD = (x, z) => { let d = 1e9; for (const s of w.sites) d = Math.min(d, Math.hypot(x - s.x, z - s.z) - s.radius * 1.4); for (const s of w.bases) d = Math.min(d, Math.hypot(x - s.x, z - s.z) - 45); return d; };
     const classify = (x, z, y, ny, out) => {
       const slope = 1 - ny;
@@ -124,6 +126,8 @@ export class Environment {
       else if (w.map.biome === 'mountains' && y > 140) { const k = smoothstep(140, 190, y) * smoothstep(0.5, 0.3, slope); out.lerp(new THREE.Color(0.9, 0.92, 0.95), k); grass *= 1 - k; }
       const rd = roadD(x, z);
       if (rd < 2) { const k = 1 - smoothstep(-1, 2, rd); out.lerp(cRoad.clone().multiplyScalar(0.9 + v2 * 0.2), k * 0.92); grass *= smoothstep(0, 2.5, rd); }
+      const rwd = rwD(x, z);
+      if (rwd < 10) { const k = 1 - smoothstep(0, 8, rwd); out.lerp(cRoad.clone().multiplyScalar(0.8), k * 0.9); grass *= smoothstep(0, 9, rwd); }
       const td = townD(x, z);
       if (td < 10) { const k = 1 - smoothstep(-15, 10, td); out.lerp(cTown, k * 0.55); grass *= 1 - k * 0.75; }
       grass *= 1 - rock;
@@ -183,6 +187,38 @@ export class Environment {
   }
 
   // ------------------------------------------------------------ grass
+  // Airstrips beside each base: asphalt strip with edge lines, dashed centreline, threshold bars and numbers.
+  buildRunways() {
+    const w = this.world;
+    if (!w.runways || !w.runways.length) return;
+    const W = 192, L = 1792, c = document.createElement('canvas'); c.width = W; c.height = L;
+    const g = c.getContext('2d');
+    g.fillStyle = '#6a6d72'; g.fillRect(0, 0, W, L);
+    for (let i = 0; i < 9000; i++) { const v = 82 + Math.random() * 30; g.fillStyle = `rgba(${v},${v},${v + 2},0.35)`; g.fillRect(Math.random() * W, Math.random() * L, 2 + Math.random() * 3, 2 + Math.random() * 6); }
+    for (let i = 0; i < 40; i++) { g.fillStyle = 'rgba(15,15,16,0.25)'; g.fillRect(W * 0.3 + Math.random() * W * 0.4, Math.random() * L, 10 + Math.random() * 20, 60 + Math.random() * 200); }   // tyre rubber
+    g.fillStyle = '#e9e9e4';
+    g.fillRect(8, 0, 9, L); g.fillRect(W - 17, 0, 9, L);                                  // edge lines
+    for (let y = 150; y < L - 150; y += 96) g.fillRect(W / 2 - 6, y, 12, 56);              // centreline dashes
+    for (const end of [0, 1]) {
+      const y0 = end ? L - 120 : 24, dir = end ? -1 : 1;
+      for (let k = 0; k < 8; k++) g.fillRect(20 + k * 19, end ? L - 24 - 64 : 24, 11, 64); // threshold bars
+      g.save(); g.translate(W / 2, end ? L - 210 : 210); if (end) g.rotate(Math.PI); g.font = 'bold 54px Arial'; g.textAlign = 'center'; g.fillText(end ? '27' : '09', 0, 0); g.restore();
+      void y0; void dir;
+    }
+    for (const y of [L * 0.3, L * 0.7]) { g.fillRect(24, y, 40, 14); g.fillRect(W - 64, y, 40, 14); }  // touchdown marks
+    const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
+    const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.92, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    for (const rw of w.runways) {
+      const geo = new THREE.PlaneGeometry(rw.w, rw.len); geo.rotateX(-Math.PI / 2);
+      const m = new THREE.Mesh(geo, mat);
+      m.position.set(rw.x, rw.y + 0.09, rw.z);
+      m.rotation.y = Math.atan2(rw.dx, rw.dz);
+      m.receiveShadow = true;
+      this.group.add(m);
+      // taxi apron connecting the strip to the base side
+    }
+  }
+
   buildGrass() {
     const w = this.world, b = this.biome;
     if (b.grassDensity <= 0.01) return;

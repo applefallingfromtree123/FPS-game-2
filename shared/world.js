@@ -22,6 +22,7 @@ export class World {
     this.buildings = [];
     this.trees = [];
     this.roads = [];
+    this.runways = [];
     this.loot = [];
     this._genLayout();
     this._genHeights();
@@ -42,6 +43,13 @@ export class World {
       { x: -ax * len, z: -az * len },
       { x: ax * len, z: az * len },
     ];
+    // a runway beside each base, parallel to the front line (fighter jets take off from it)
+    this.runways = this.bases.map((b, team) => {
+      const toward = Math.atan2(-b.z, -b.x);
+      const dx = Math.cos(toward), dz = Math.sin(toward);
+      const side = team === 0 ? 1 : -1, off = 115;
+      return { team, x: b.x - dz * off * side, z: b.z + dx * off * side, dx, dz, len: 440, w: 30 };
+    });
     // objective sites along the axis, zig-zagging sideways
     const n = r.int(5, 7);
     const names = 'ABCDEFG';
@@ -112,6 +120,34 @@ export class World {
       const g = this.heightAt(s.x, s.z);
       if (g < this.waterLevel + 1.5) this._raise(s.x, s.z, 140, this.waterLevel + 2 - g);
     }
+    for (const rw of this.runways) this._flattenRunway(rw);
+  }
+
+  // Level the terrain under a runway (with a 50 m blended shoulder) so aircraft can roll and take off.
+  _flattenRunway(rw) {
+    let h0 = 0;
+    for (let k = -2; k <= 2; k++) h0 += this.heightAt(rw.x + rw.dx * k * rw.len * 0.2, rw.z + rw.dz * k * rw.len * 0.2);
+    h0 = Math.max(h0 / 5, this.waterLevel + 2.5);
+    rw.y = h0;
+    const res = this.res, H = this.heights, R = rw.len / 2 + 60;
+    const i0 = Math.max(0, Math.floor((rw.x - R + this.half) / CELL)), i1 = Math.min(res - 1, Math.ceil((rw.x + R + this.half) / CELL));
+    const j0 = Math.max(0, Math.floor((rw.z - R + this.half) / CELL)), j1 = Math.min(res - 1, Math.ceil((rw.z + R + this.half) / CELL));
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+      const x = i * CELL - this.half, z = j * CELL - this.half;
+      const ex = x - rw.x, ez = z - rw.z;
+      const u = ex * rw.dx + ez * rw.dz, v = -ex * rw.dz + ez * rw.dx;
+      const d = Math.hypot(Math.max(0, Math.abs(u) - rw.len / 2 - 6), Math.max(0, Math.abs(v) - rw.w / 2 - 6));
+      if (d < 50) H[j * res + i] = lerp(H[j * res + i], h0, 1 - smoothstep(0, 50, d));
+    }
+  }
+
+  inRunway(x, z, pad = 0) {
+    for (const rw of this.runways) {
+      const ex = x - rw.x, ez = z - rw.z;
+      const u = ex * rw.dx + ez * rw.dz, v = -ex * rw.dz + ez * rw.dx;
+      if (Math.abs(u) < rw.len / 2 + pad && Math.abs(v) < rw.w / 2 + pad) return true;
+    }
+    return false;
   }
 
   _rawBase(n1, n2, n3, x, z) {
@@ -173,6 +209,7 @@ export class World {
     const addBuilding = (x, z, w, d, h, type) => {
       const y = Math.min(this.heightAt(x - w / 2, z - d / 2), this.heightAt(x + w / 2, z + d / 2), this.heightAt(x - w / 2, z + d / 2), this.heightAt(x + w / 2, z - d / 2), this.heightAt(x, z)) - 0.3;
       if (y < this.waterLevel + 0.5) return false;
+      if (this.inRunway(x, z, Math.max(w, d) / 2 + 12)) return false;
       for (const o of this.buildings) {
         if (Math.abs(o.x - x) < (o.w + w) / 2 + 3 && Math.abs(o.z - z) < (o.d + d) / 2 + 3) return false;
       }
@@ -184,6 +221,7 @@ export class World {
     const addCover = (x, z, w, d, h, type) => {
       const y = this.heightAt(x, z) - 0.05;
       if (y < this.waterLevel) return;
+      if (this.inRunway(x, z, Math.max(w, d) / 2 + 12)) return;
       for (const o of this.buildings) if (Math.abs(o.x - x) < (o.w + w) / 2 + 0.8 && Math.abs(o.z - z) < (o.d + d) / 2 + 0.8) return;
       this.buildings.push({ x, z, w, d, h, y, type, cover: true, color: type === 'sandbag' ? '#8a7a5a' : type === 'container' ? r.pick(['#8a3b2a', '#2c5a8a', '#4f6b39', '#a8822e']) : '#7a7a74', roof: 'flat' });
     };
@@ -257,6 +295,7 @@ export class World {
       if (this.bases.some((b) => Math.hypot(b.x - x, b.z - z) < 70)) continue;
       if (this.roads.some((rd) => distToSeg(x, z, rd.ax, rd.az, rd.bx, rd.bz) < rd.w + 2)) continue;
       if (this.pointInBuilding(x, z, 2)) continue;
+      if (this.inRunway(x, z, 18)) continue;
       const type = types[Math.floor(r.next() * types.length)];
       this.trees.push({ x, y, z, s: r.float(0.75, 1.35), type, rot: r.float(0, 6.28) });
       k++;
@@ -276,7 +315,9 @@ export class World {
       };
       add('tank', 15, -12); add('tank', 15, 12); add('ifv', 22, 0);
       add('jeep', 5, -24); add('jeep', 5, 24);
-      add('heli', -30, -30); add('jet', -45, 30);
+      add('heli', -30, -30);
+      const rw = this.runways[team];
+      this.vehicleSpawns.push({ type: 'jet', team, x: rw.x - rw.dx * (rw.len / 2 - 35), z: rw.z - rw.dz * (rw.len / 2 - 35), yaw: Math.atan2(b.x, b.z) });
       void r;
     });
   }
