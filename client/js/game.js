@@ -518,6 +518,7 @@ export class Game {
     this.audio.gunshot(w.cat, 0, 0, 0, suppressed, true);
     this.vmFlash.visible = !suppressed && w.cat !== 'launcher'; this.vmFlash.scale.setScalar(w.cat === 'launcher' ? 0.6 : 0.18); this.vmFlash.material.rotation = Math.random() * 6;
     this.flashT = 0.05;
+    { const sc = $('scope'); if (sc.style.display === 'block') { sc.classList.remove('shot'); void sc.offsetWidth; sc.classList.add('shot'); } }   // visible shot feedback inside the scope
     const muzzleWorld = this.muzzleWorld();
     if (w.cat !== 'launcher' && w.cat !== 'shotgun') { const rt = new V3(Math.cos(this.cam.yaw), 0, -Math.sin(this.cam.yaw)); this.fx.casing(this.eyePos().addScaledVector(this.aimDir(), 0.35).addScaledVector(rt, 0.1).add(new V3(0, -0.07, 0)), rt, new V3(0, 1, 0)); }
     if (!suppressed) { this.fx.light.position.copy(muzzleWorld); this.fx.light.intensity = 25; this.fx.lightLife = 0.05; }
