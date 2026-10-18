@@ -493,7 +493,7 @@ export class Game {
     if (!w || now < this.switchUntil || now < this.reloadUntil || this.sprinting && this.adsT < 0.1 && false) return;
     const mode = w.modes[this.fireModeIdx % w.modes.length];
     const auto = mode === 'auto';
-    const wantShot = auto ? this.mouse.left : (mode === 'burst' ? (this.mouse.leftPressed || this.burstLeft > 0) : this.mouse.leftPressed);
+    const wantShot = auto ? (this.mouse.left || this.mouse.leftPressed) : (mode === 'burst' ? (this.mouse.leftPressed || this.burstLeft > 0) : this.mouse.leftPressed);
     if (!wantShot || now < this.nextFire) return;
     const a = this.ammoOf(w);
     if (a.mag <= 0) { if (this.mouse.leftPressed) this.audio.click(); this.startReload(); this.burstLeft = 0; return; }

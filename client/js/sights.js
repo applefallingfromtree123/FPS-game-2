@@ -44,7 +44,7 @@ export function drawScope(cv, kind, zoom) {
   const R = m * (kind === 'scope' ? 0.46 : kind === 'x2' ? 0.43 : 0.40);
 
   // outside the lens: the surroundings stay visible (blurred by the #scopeBlur CSS layer); a thick scope-tube ring frames the lens
-  g.fillStyle = 'rgba(0,0,0,0.22)';
+  g.fillStyle = 'rgba(0,0,0,0.5)';
   g.beginPath(); g.rect(0, 0, w, h); g.arc(cx, cy, R, 0, TAU, true); g.fill('evenodd');
   const rim = R * 0.13;
   // gun-rail body rising from the bottom of the screen into the scope ring (like looking through a real scope on a rifle)

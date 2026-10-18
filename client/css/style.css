@@ -294,8 +294,7 @@ button.primary:hover { background: #8fdcff; filter: none; }
 .ntag.en { color: #ff7a6e; }
 
 /* outside of a magnified lens: blurred, dimmed surroundings (ring-shaped mask leaves the lens clear) */
-#scopeBlur { position: absolute; inset: 0; pointer-events: none; -webkit-backdrop-filter: blur(7px) brightness(0.72); backdrop-filter: blur(7px) brightness(0.72);
-  -webkit-mask-image: radial-gradient(circle at 50% 50%, transparent calc(var(--sr, 46) * 1vmin + 2px), #000 calc(var(--sr, 46) * 1vmin + 22px)); mask-image: radial-gradient(circle at 50% 50%, transparent calc(var(--sr, 46) * 1vmin + 2px), #000 calc(var(--sr, 46) * 1vmin + 22px)); }
+#scopeBlur { position: absolute; inset: 0; pointer-events: none; display: none; }   /* no backdrop-filter: it made iPad Safari crawl while scoped */
 
 /* in-match chat */
 #chatLog { position: absolute; left: 14px; bottom: 262px; width: min(380px, 44vw); max-height: 170px; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; pointer-events: none; font: 600 13px 'Noto Sans KR', Rajdhani, sans-serif; text-shadow: 0 1px 3px #000, 0 0 2px #000; }
