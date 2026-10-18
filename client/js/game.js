@@ -244,6 +244,16 @@ export class Game {
       if (e.code === 'KeyM') $('bigmap').style.display = 'none';
     };
     this._mm = (e) => {
+      // Browsers do not fire mousedown/mouseup for a second button pressed while another is held (e.g. left click while holding
+      // right-mouse to aim), so track button edges from mousemove too.
+      if (e.buttons !== undefined && this.locked() && !this.chatOpen) {
+        const b = e.buttons, o = this._mb || 0;
+        if ((b & 1) && !(o & 1)) { this.mouse.left = true; this.mouse.leftPressed = true; }
+        if (!(b & 1) && (o & 1)) this.mouse.left = false;
+        if ((b & 2) && !(o & 2)) { this.mouse.right = true; this.mouse.rightPressed = true; }
+        if (!(b & 2) && (o & 2)) this.mouse.right = false;
+        this._mb = b;
+      }
       // Chrome can report a huge bogus delta right after the pointer gets locked
       let mx = e.movementX, my = e.movementY;
       if (mx === undefined) { mx = this._lx === undefined ? 0 : e.clientX - this._lx; my = this._ly === undefined ? 0 : e.clientY - this._ly; }
@@ -258,8 +268,9 @@ export class Game {
       if (!this.locked()) { if (this.me.alive && !this.ended && $('deploy').style.display !== 'flex' && $('pause').style.display !== 'flex') this.lock(); return; }
       if (e.button === 0) { this.mouse.left = true; this.mouse.leftPressed = true; }
       if (e.button === 2) { this.mouse.right = true; this.mouse.rightPressed = true; }
+      this._mb = e.buttons;
     };
-    this._mu = (e) => { if (e.button === 0) this.mouse.left = false; if (e.button === 2) this.mouse.right = false; };
+    this._mu = (e) => { if (e.button === 0) this.mouse.left = false; if (e.button === 2) this.mouse.right = false; this._mb = e.buttons; };
     window.addEventListener('blur', () => { if (!this.hasPointerLock) this.unlock(); });
     this._plc = () => {
       if (this.chatOpen) return;
